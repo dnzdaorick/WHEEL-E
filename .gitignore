@@ -1,0 +1,12 @@
+# PlatformIO local environment hidden directories
+**/.pio/
+**/.vscode/
+
+# Compiled firmware binaries
+**/*.hex
+**/*.bin
+**/*.elf
+
+# OS specific temporary files
+.DS_Store
+Thumbs.db
