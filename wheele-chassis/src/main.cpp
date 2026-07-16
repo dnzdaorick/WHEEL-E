@@ -201,7 +201,7 @@ String currentCmd = "STOP";
 
 // --- DYNAMIC COMPANION MOOD ROTATION STATES ---
 enum IdleActivity {
-    ACT_RESTING,   // Quiet Baseline State (Blinks calmly, no disruptive audio/movements)
+    ACT_RESTING,   
     ACT_SINGING,   
     ACT_GIGGLING,  
     ACT_LOOKING,   
@@ -221,7 +221,7 @@ unsigned long lastLoopTime = 0;
 unsigned long idleActElapsedTime = 0;        
 unsigned long idleActDuration = 5000;        
 unsigned long sleepElapsedTime = 0;          
-const unsigned long sleepThreshold = 120000; 
+const unsigned long sleepThreshold = 120000; // 2 minutes
 
 // Non-blocking OLED Animation Timers
 unsigned long lastBlinkTime = 0;
@@ -579,7 +579,6 @@ void updateFaceAnimation() {
             display.drawLine(64, 46, 68, 43, SSD1306_WHITE);
 
             if (isBlinking) {
-                // Blinking closed eye frames (Left look vectors)
                 display.fillRoundRect(16, 18, 32, 8, 4, SSD1306_WHITE);
                 display.fillRoundRect(80, 18, 32, 8, 4, SSD1306_WHITE);
             } else {
@@ -601,7 +600,6 @@ void updateFaceAnimation() {
             display.drawLine(72, 46, 76, 43, SSD1306_WHITE);
 
             if (isBlinking) {
-                // Blinking closed eye frames (Right look vectors)
                 display.fillRoundRect(16, 18, 32, 8, 4, SSD1306_WHITE);
                 display.fillRoundRect(80, 18, 32, 8, 4, SSD1306_WHITE);
             } else {
@@ -889,7 +887,7 @@ void updateFaceAnimation() {
 void processMovement(String command) {
     unsigned long now = millis();
 
-    // Wake Up Trigger: If napping and receives command -> Wake up refreshed instantly!
+    // Wake Up Trigger: If napping/yawning and receives a command -> instantly wake up!
     if (command != "STOP" && (currentIdleAct == ACT_NAPPING || currentIdleAct == ACT_YAWNING)) {
         currentIdleAct = ACT_RESTING;
         idleActElapsedTime = 0;
@@ -1027,7 +1025,7 @@ void loop() {
     unsigned long dt = now - lastLoopTime;
     lastLoopTime = now;
 
-    // --- ACCUMULATE ELAPSED TIME STRICTLY IF WE ARE STOPPED (PAUSED WHEN MOVING) ---
+    // --- ACCUMULATE ELAPSED TIME STRICTLY IF WE ARE STOPPED ---
     if (currentCmd == "STOP") {
         idleActElapsedTime += dt;
         sleepElapsedTime += dt;
@@ -1109,12 +1107,13 @@ void loop() {
     // --- DYNAMIC SEQUENTIAL IDLE SCHEDULER (PAUSABLE) ---
     if (currentFace == FACE_IDLE) {
         if (sleepElapsedTime >= sleepThreshold && currentIdleAct == ACT_NAPPING) {
-            // Locked in deep sleep state permanently until user sends input
+            // LOCKED SLEEP STATE: Infinitely loops here safely until a web/remote button is pressed.
         } 
         else if (idleActElapsedTime >= idleActDuration) {
             idleActElapsedTime = 0; 
             
             if (currentIdleAct == ACT_RESTING) {
+                // Transition cleanly into the queued expressive mood
                 currentIdleAct = nextExpressiveMood;
                 
                 switch (currentIdleAct) {
@@ -1131,7 +1130,11 @@ void loop() {
                 }
             } 
             else {
-                switch (currentIdleAct) {
+                // Save what just ran so we can determine structural hand-offs
+                IdleActivity finishedAct = currentIdleAct;
+
+                // Advance track timeline queue pointer
+                switch (finishedAct) {
                     case ACT_SINGING:  nextExpressiveMood = ACT_GIGGLING; break;
                     case ACT_GIGGLING: nextExpressiveMood = ACT_LOOKING; break;
                     case ACT_LOOKING:  nextExpressiveMood = ACT_DIZZY; break;
@@ -1144,9 +1147,16 @@ void loop() {
                     default:           nextExpressiveMood = ACT_SINGING; break;
                 }
                 
-                // Force return to resting downtime with a randomized 2 to 10 second budget
-                currentIdleAct = ACT_RESTING;
-                idleActDuration = random(2000, 10001); 
+                // CRITICAL FIX: If a yawn finished, step directly into deep sleep (ACT_NAPPING).
+                // Do NOT drop back to ACT_RESTING first, which breaks the threshold logic filter!
+                if (finishedAct == ACT_YAWNING) {
+                    currentIdleAct = ACT_NAPPING;
+                    idleActDuration = 12000; 
+                } else {
+                    // Otherwise, safely take a quiet resting pause for 2-10 seconds
+                    currentIdleAct = ACT_RESTING;
+                    idleActDuration = random(2000, 10001); 
+                }
             }
         }
     }
