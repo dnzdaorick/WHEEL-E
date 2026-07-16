@@ -122,7 +122,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             transform: scale(0.92);
         }
         .btn.empty { background: transparent; border: none; cursor: default; pointer-events: none; }
-        .footer { font-size: 0.75rem; color: #6d564f; letter-spacing: 0.8px; }
     </style>
 </head>
 <body>
@@ -140,7 +139,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             <div class="btn" id="down" data-cmd="BACKWARD">▼</div>
             <div class="btn empty"></div>
         </div>
-        <div class="footer">COPPER CIRCUIT SCULPTURE</div>
     </div>
     <script>
         let ws;
@@ -221,7 +219,7 @@ unsigned long lastLoopTime = 0;
 unsigned long idleActElapsedTime = 0;        
 unsigned long idleActDuration = 5000;        
 unsigned long sleepElapsedTime = 0;          
-const unsigned long sleepThreshold = 120000; // 2 minutes
+const unsigned long sleepThreshold = 120000; 
 
 // Non-blocking OLED Animation Timers
 unsigned long lastBlinkTime = 0;
@@ -378,8 +376,8 @@ void triggerSneezeSound() {
     playMelody(7);
 }
 
-void triggerActionBlip() {
-    currentMelody[0] = {1100, 50}; 
+void triggerMovementNote(int frequency) {
+    currentMelody[0] = {frequency, 140}; 
     playMelody(1);
 }
 
@@ -408,44 +406,45 @@ void triggerFullChargeSound() {
 
 // Background sound engine process
 void updateSoundEngine() {
-    if (currentCmd == "BACKWARD") {
-        isPlayingSound = false;
-        currentNoteIndex = -1;
-        
-        unsigned long now = millis();
-        if (now - lastBackupBeep >= 250) { 
-            lastBackupBeep = now;
-            backupBeepState = !backupBeepState;
-            if (backupBeepState) {
-                tone(BUZZER_PIN, 1000); 
+    unsigned long now = millis();
+
+    // 1. Process active short instrument notes and arpeggios first
+    if (isPlayingSound) {
+        if (now - noteStartTime >= currentMelody[currentNoteIndex].duration) {
+            currentNoteIndex++;
+            if (currentNoteIndex < melodyLength) {
+                noteStartTime = now;
+                if (currentMelody[currentNoteIndex].frequency > 0) {
+                    tone(BUZZER_PIN, currentMelody[currentNoteIndex].frequency);
+                } else {
+                    noTone(BUZZER_PIN);
+                }
             } else {
                 noTone(BUZZER_PIN);
+                isPlayingSound = false;
+                currentNoteIndex = -1;
             }
-        }
-        return;
-    } else {
-        if (backupBeepState) {
-            noTone(BUZZER_PIN);
-            backupBeepState = false;
         }
     }
 
-    if (!isPlayingSound) return;
-
-    unsigned long now = millis();
-    if (now - noteStartTime >= currentMelody[currentNoteIndex].duration) {
-        currentNoteIndex++;
-        if (currentNoteIndex < melodyLength) {
-            noteStartTime = now;
-            if (currentMelody[currentNoteIndex].frequency > 0) {
-                tone(BUZZER_PIN, currentMelody[currentNoteIndex].frequency);
-            } else {
-                noTone(BUZZER_PIN);
+    // 2. CRITICAL BUGFIX: Process the continuous reverse beeper ONLY if the initial movement note has completed!
+    if (currentCmd == "BACKWARD") {
+        if (!isPlayingSound) { 
+            if (now - lastBackupBeep >= 250) { // Creates a distinct 250ms ON / 250ms OFF pulse profile
+                lastBackupBeep = now;
+                backupBeepState = !backupBeepState;
+                if (backupBeepState) {
+                    tone(BUZZER_PIN, 349); // Retro warning chime scale note (F4)
+                } else {
+                    noTone(BUZZER_PIN);
+                }
             }
-        } else {
+        }
+    } else {
+        // Stop beeping immediately when you release the down direction key
+        if (backupBeepState) {
             noTone(BUZZER_PIN);
-            isPlayingSound = false;
-            currentNoteIndex = -1;
+            backupBeepState = false;
         }
     }
 }
@@ -569,7 +568,7 @@ void updateFaceAnimation() {
             display.drawRoundRect(52, 40, 24, 14, 6, SSD1306_WHITE);
             break;
         }
-        case FACE_LEFT: {
+        case FACE_RIGHT: {
             display.fillCircle(10, 42, 4, SSD1306_WHITE);
             display.fillCircle(118, 42, 4, SSD1306_WHITE);
 
@@ -590,7 +589,7 @@ void updateFaceAnimation() {
             }
             break;
         }
-        case FACE_RIGHT: {
+        case FACE_LEFT: {
             display.fillCircle(10, 42, 4, SSD1306_WHITE);
             display.fillCircle(118, 42, 4, SSD1306_WHITE);
 
@@ -895,8 +894,12 @@ void processMovement(String command) {
         triggerConnectedSound(); 
     }
 
-    if (command != currentCmd && command != "STOP" && command != "BACKWARD") {
-        triggerActionBlip(); 
+    // --- EASTER EGG INITIATION SCALE ---
+    if (command != currentCmd && command != "STOP") {
+        if (command == "FORWARD")       triggerMovementNote(523); // Play C5
+        else if (command == "BACKWARD")  triggerMovementNote(587); // Play D5
+        else if (command == "LEFT")      triggerMovementNote(659); // Play E5
+        else if (command == "RIGHT")     triggerMovementNote(698); // FIX: Swapped G5 out for a perfectly tuned F5!
     }
     
     currentCmd = command;
@@ -1036,7 +1039,7 @@ void loop() {
     dnsServer.processNextRequest(); 
     server.handleClient();
     webSocket.loop();
-    updateSoundEngine(); 
+    updateSoundEngine(); // Processes short melodic key notes and handles pulsing warn states
     checkBatteryStatus(); 
 
     static int lastActiveClients = 0;
@@ -1107,13 +1110,12 @@ void loop() {
     // --- DYNAMIC SEQUENTIAL IDLE SCHEDULER (PAUSABLE) ---
     if (currentFace == FACE_IDLE) {
         if (sleepElapsedTime >= sleepThreshold && currentIdleAct == ACT_NAPPING) {
-            // LOCKED SLEEP STATE: Infinitely loops here safely until a web/remote button is pressed.
+            // LOCKED SLEEP STATE: Infinitely loops here until woken up by web/remote commands
         } 
         else if (idleActElapsedTime >= idleActDuration) {
             idleActElapsedTime = 0; 
             
             if (currentIdleAct == ACT_RESTING) {
-                // Transition cleanly into the queued expressive mood
                 currentIdleAct = nextExpressiveMood;
                 
                 switch (currentIdleAct) {
@@ -1130,7 +1132,7 @@ void loop() {
                 }
             } 
             else {
-                // Save what just ran so we can determine structural hand-offs
+                // Save what just ran to handle specific sleep logic hand-offs
                 IdleActivity finishedAct = currentIdleAct;
 
                 // Advance track timeline queue pointer
@@ -1147,15 +1149,12 @@ void loop() {
                     default:           nextExpressiveMood = ACT_SINGING; break;
                 }
                 
-                // CRITICAL FIX: If a yawn finished, step directly into deep sleep (ACT_NAPPING).
-                // Do NOT drop back to ACT_RESTING first, which breaks the threshold logic filter!
                 if (finishedAct == ACT_YAWNING) {
                     currentIdleAct = ACT_NAPPING;
                     idleActDuration = 12000; 
                 } else {
-                    // Otherwise, safely take a quiet resting pause for 2-10 seconds
                     currentIdleAct = ACT_RESTING;
-                    idleActDuration = random(2000, 10001); 
+                    idleActDuration = random(2000, 10001); // Random 2-10s baseline quiet delay budget
                 }
             }
         }
