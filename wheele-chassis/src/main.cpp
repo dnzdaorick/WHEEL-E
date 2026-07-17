@@ -8,15 +8,15 @@
 #include <Adafruit_SSD1306.h>
 
 // Pin Mappings
-#define MOTOR_IN4 0  
-#define MOTOR_IN3 1  
-#define MOTOR_IN2 2  
-#define MOTOR_IN1 3  
-#define OLED_SDA  8  
-#define OLED_SCL  9  
-#define BUZZER_PIN 10 
-#define BATTERY_PIN 4   // ADC1_CH4 for battery voltage divider
-#define CHARGING_PIN 5  // Digital input for charging status (LOW = Charging)
+#define MOTOR_IN4 0
+#define MOTOR_IN3 1
+#define MOTOR_IN2 2
+#define MOTOR_IN1 3
+#define OLED_SDA 8
+#define OLED_SCL 9
+#define BUZZER_PIN 10
+#define BATTERY_PIN 4       // ADC for battery voltage divider
+#define CHARGING_PIN 5      // Digital input for charging status (LOW = charging)
 
 // Display settings
 #define SCREEN_WIDTH 128
@@ -33,7 +33,7 @@ DNSServer dnsServer;
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 
-// Secret Instrument Morphed Dashboard HTML Layout
+// Dashboard HTML interface
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -104,6 +104,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
+            touch-action: none; 
         }
         .btn {
             background: rgba(216, 122, 65, 0.05);
@@ -116,24 +117,21 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             font-size: 1.8rem;
             color: #f5eae4;
             cursor: pointer;
-            transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            touch-action: manipulation;
+            transition: background 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
         }
-        .btn:active {
+        .btn.sliding-active {
             background: #e07a5f;
             color: #0c0604;
             border-color: #e07a5f;
             box-shadow: 0 0 25px rgba(224, 122, 95, 0.55);
-            transform: scale(0.92);
+            transform: scale(0.94);
         }
-        /* NORMAL MODE: Hide note pads into invisible layout layout spaces */
         .btn.music-only-pad {
             opacity: 0;
             pointer-events: none;
             visibility: hidden;
-            transition: all 0.4s ease;
+            transition: opacity 0.3s ease;
         }
-        /* MUSIC MODE: Active alphabetical launchpad presentation profiles */
         .card.music-mode-active .btn {
             border-color: rgba(255, 183, 3, 0.3);
             background: rgba(255, 183, 3, 0.03);
@@ -144,7 +142,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             pointer-events: auto;
             visibility: visible;
         }
-        .card.music-mode-active .btn:active {
+        .card.music-mode-active .btn.sliding-active {
             background: #ffb703;
             color: #023047;
             border-color: #ffb703;
@@ -156,7 +154,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     <div class="card" id="dashboardCard">
         <h1 id="mainTitle">WHEEL-E</h1>
         <div class="status-bar"><span class="dot" id="dot"></span> <span id="lbl">DISCONNECTED</span></div>
-        <div class="control-grid">
+        <div class="control-grid" id="controlGrid">
             <div class="btn music-only-pad" id="nw" data-cmd="NW"></div>
             <div class="btn" id="up" data-cmd="FORWARD">▲</div>
             <div class="btn music-only-pad" id="ne" data-cmd="NE"></div>
@@ -174,16 +172,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         const lbl = document.getElementById('lbl');
         const card = document.getElementById('dashboardCard');
         const title = document.getElementById('mainTitle');
+        const grid = document.getElementById('controlGrid');
         
-        const btnNW = document.getElementById('nw');
-        const btnUp = document.getElementById('up');
-        const btnNE = document.getElementById('ne');
-        const btnLeft = document.getElementById('left');
-        const btnCenter = document.getElementById('center');
-        const btnRight = document.getElementById('right');
-        const btnSW = document.getElementById('sw');
-        const btnDown = document.getElementById('down');
-        const btnSE = document.getElementById('se');
+        let isMouseDown = false;
+        let lastSentCommandString = "STOP";
+        let lastValidCommand = "STOP";
+        let lastCommandTime = 0;
+        const commandDebounce = 50;  // Minimum 50ms between command updates
         
         function connect() {
             ws = new WebSocket('ws://' + window.location.hostname + ':81/');
@@ -192,11 +187,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 lbl.innerText = 'CONNECTED';
             };
             ws.onmessage = (evt) => {
-                if (evt.data === "UI_MUSIC") {
-                    setMusicUI(true);
-                } else if (evt.data === "UI_DRIVE") {
-                    setMusicUI(false);
-                }
+                if (evt.data === "UI_MUSIC") setMusicUI(true);
+                else if (evt.data === "UI_DRIVE") setMusicUI(false);
             };
             ws.onclose = () => {
                 dot.classList.remove('connected');
@@ -210,27 +202,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (isMusic) {
                 card.classList.add('music-mode-active');
                 title.innerText = "SYNTHESIZER";
-                btnNW.innerText = "C5";
-                btnUp.innerText = "D5";
-                btnNE.innerText = "E5";
-                btnLeft.innerText = "F5";
-                btnCenter.innerText = "G5";
-                btnRight.innerText = "A5";
-                btnSW.innerText = "B5";
-                btnDown.innerText = "C6";
-                btnSE.innerText = "D6";
+                document.getElementById('nw').innerText = "C5";
+                document.getElementById('up').innerText = "D5";
+                document.getElementById('ne').innerText = "E5";
+                document.getElementById('left').innerText = "F5";
+                document.getElementById('center').innerText = "G5";
+                document.getElementById('right').innerText = "A5";
+                document.getElementById('sw').innerText = "B5";
+                document.getElementById('down').innerText = "C6";
+                document.getElementById('se').innerText = "D6";
             } else {
                 card.classList.remove('music-mode-active');
                 title.innerText = "WHEEL-E";
-                btnNW.innerText = "";
-                btnUp.innerText = "▲";
-                btnNE.innerText = "";
-                btnLeft.innerText = "◀";
-                btnCenter.innerText = "";
-                btnRight.innerText = "▶";
-                btnSW.innerText = "";
-                btnDown.innerText = "▼";
-                btnSE.innerText = "";
+                document.getElementById('nw').innerText = "";
+                document.getElementById('up').innerText = "▲";
+                document.getElementById('ne').innerText = "";
+                document.getElementById('left').innerText = "◀";
+                document.getElementById('center').innerText = "";
+                document.getElementById('right').innerText = "▶";
+                document.getElementById('sw').innerText = "";
+                document.getElementById('down').innerText = "▼";
+                document.getElementById('se').innerText = "";
             }
         }
         
@@ -239,14 +231,114 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 ws.send(cmd);
             }
         }
-        
-        document.querySelectorAll('.btn').forEach(btn => {
-            const cmd = btn.getAttribute('data-cmd');
-            btn.addEventListener('mousedown', () => send(cmd));
-            btn.addEventListener('mouseup', () => { if(cmd !== 'STOP') send('STOP'); });
-            btn.addEventListener('touchstart', (e) => { e.preventDefault(); send(cmd); });
-            btn.addEventListener('touchend', (e) => { e.preventDefault(); if(cmd !== 'STOP') send('STOP'); });
+
+        function evaluateInputPads(eventPoints, isEndEvent = false) {
+            const now = Date.now();
+            let activeCmds = [];
+            let activeElements = [];
+            const isMusic = card.classList.contains('music-mode-active');
+
+            if (!isMusic) {
+                // Drive mode: strict single command, reject multi-touch
+                // If multiple touch points in drive mode, ignore all of them
+                if (eventPoints.length > 1) {
+                    // Multi-touch detected in drive mode - ignore
+                    if (isEndEvent) {
+                        activeCmds = [];
+                        lastValidCommand = "STOP";
+                    } else {
+                        // Keep the last valid command during multi-touch
+                        activeCmds = [lastValidCommand];
+                    }
+                } else if (eventPoints.length === 1) {
+                    // Single touch - process normally
+                    const element = document.elementFromPoint(eventPoints[0].x, eventPoints[0].y);
+                    if (element && element.classList.contains('btn')) {
+                        if (window.getComputedStyle(element).visibility !== 'hidden') {
+                            const cmd = element.getAttribute('data-cmd');
+                            activeCmds.push(cmd);
+                            activeElements.push(element);
+                            lastValidCommand = cmd;
+                        }
+                    } else if (!isEndEvent) {
+                        // No button found during move - keep last valid command
+                        activeCmds = [lastValidCommand];
+                    }
+                } else if (isEndEvent) {
+                    // Touch released
+                    activeCmds = [];
+                    lastValidCommand = "STOP";
+                } else {
+                    // No points and not end event
+                    activeCmds = [lastValidCommand];
+                }
+            } else {
+                // Synthesizer mode: full polyphonic support with all touch points
+                eventPoints.forEach(pt => {
+                    const element = document.elementFromPoint(pt.x, pt.y);
+                    if (element && element.classList.contains('btn')) {
+                        if (window.getComputedStyle(element).visibility !== 'hidden') {
+                            let cmd = element.getAttribute('data-cmd');
+                            if (!activeCmds.includes(cmd)) {
+                                activeCmds.push(cmd);
+                                activeElements.push(element);
+                            }
+                        }
+                    }
+                });
+            }
+
+            document.querySelectorAll('.btn').forEach(b => {
+                if (activeElements.includes(b)) b.classList.add('sliding-active');
+                else b.classList.remove('sliding-active');
+            });
+
+            let commandString = activeCmds.length > 0 ? activeCmds.sort().join(",") : "STOP";
+            
+            // Always send STOP immediately, otherwise apply debounce
+            if (commandString !== lastSentCommandString &&
+                (commandString === "STOP" || now - lastCommandTime >= commandDebounce)) {
+                lastSentCommandString = commandString;
+                lastCommandTime = now;
+                send(commandString);
+            }
+        }
+
+        function releaseInputPads() {
+            isMouseDown = false;
+            lastValidCommand = "STOP";
+            evaluateInputPads([], true);
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('sliding-active'));
+        }
+
+        window.addEventListener('mousedown', (e) => {
+            isMouseDown = true;
+            updateMouseList(e);
         });
+        window.addEventListener('mousemove', (e) => {
+            if (isMouseDown) updateMouseList(e);
+        });
+        window.addEventListener('mouseup', releaseInputPads);
+        window.addEventListener('mouseleave', releaseInputPads);
+        window.addEventListener('blur', releaseInputPads);
+
+        function updateMouseList(e) {
+            evaluateInputPads([{ x: e.clientX, y: e.clientY }], false);
+        }
+
+        grid.addEventListener('touchstart', parseTouchList, { passive: false });
+        grid.addEventListener('touchmove', parseTouchList, { passive: false });
+        grid.addEventListener('touchend', parseTouchList, { passive: false });
+        grid.addEventListener('touchcancel', parseTouchList, { passive: false });
+        function parseTouchList(e) {
+            e.preventDefault();
+            let points = [];
+            for (let i = 0; i < e.touches.length; i++) {
+                points.push({ x: e.touches[i].clientX, y: e.touches[i].clientY });
+            }
+            const isEndEvent = e.type === 'touchend' || e.type === 'touchcancel';
+            evaluateInputPads(points, isEndEvent);
+        }
         
         connect();
     </script>
@@ -274,44 +366,54 @@ enum FaceState {
 FaceState currentFace = FACE_BOOTING;
 String currentCmd = "STOP";
 
-// --- DYNAMIC COMPANION MOOD ROTATION STATES ---
+// Idle activity states for companion mood rotation
 enum IdleActivity {
-    ACT_RESTING,   
-    ACT_SINGING,   
-    ACT_GIGGLING,  
-    ACT_LOOKING,   
-    ACT_DIZZY,     
-    ACT_POUTING,   
-    ACT_SIGHING,   
-    ACT_SNEEZING,  
-    ACT_YAWNING,   
-    ACT_NAPPING    
+    ACT_RESTING,
+    ACT_SINGING,
+    ACT_GIGGLING,
+    ACT_LOOKING,
+    ACT_DIZZY,
+    ACT_POUTING,
+    ACT_SIGHING,
+    ACT_SNEEZING,
+    ACT_YAWNING,
+    ACT_NAPPING
 };
 
 IdleActivity currentIdleAct = ACT_RESTING;
 IdleActivity nextExpressiveMood = ACT_SINGING; 
 
-// --- COHERENT PAUSABLE DELTA TIMERS ---
-unsigned long lastLoopTime = 0;              
-unsigned long idleActElapsedTime = 0;        
-unsigned long idleActDuration = 5000;        
-unsigned long sleepElapsedTime = 0;          
+// Timing variables for animation and activity states
+unsigned long lastLoopTime = 0;
+unsigned long idleActElapsedTime = 0;
+unsigned long idleActDuration = 5000;
+unsigned long sleepElapsedTime = 0;
 const unsigned long sleepThreshold = 120000; 
 
-// --- SECRET WIGGLE TOGGLE SEQUENCE TIMERS ---
+// Music mode state and combo gesture tracking
 bool isMusicMode = false;
 unsigned long lastComboTapTime = 0;
 int comboStateStep = 0; 
 
-// Non-blocking OLED Animation Timers
+// Polyphonic audio frequency tracking
+int activeFrequencies[9];
+int activeFreqCount = 0;
+unsigned long lastArpeggioFrameTime = 0;
+int arpeggioIndexPointer = 0;
+
+unsigned long musicNoteOnTime = 0;
+bool musicNotePendingStop = false;
+unsigned long musicInactivityElapsedTime = 0; 
+
+// Display animation timing
 unsigned long lastBlinkTime = 0;
 bool isBlinking = false;
-unsigned long blinkDuration = 180;     
-unsigned long blinkInterval = 3500;     
+unsigned long blinkDuration = 180;
+unsigned long blinkInterval = 3500;
 unsigned long connectedAnimStart = 0;
 const unsigned long connectedAnimDuration = 2000;
 
-// Non-blocking Sound Sequencer Structure
+// Sound note definition
 struct Note {
     int frequency;
     unsigned long duration;
@@ -508,6 +610,25 @@ void triggerFullChargeSound() {
 void updateSoundEngine() {
     unsigned long now = millis();
 
+    // 1. CHIPTUNE CHORD MULTIPLEXER (Rapid square-wave multiplexing runs strictly for chords)
+    if (isMusicMode && activeFreqCount > 1) {
+        if (now - lastArpeggioFrameTime >= 18) { 
+            lastArpeggioFrameTime = now;
+            arpeggioIndexPointer = (arpeggioIndexPointer + 1) % activeFreqCount;
+            tone(BUZZER_PIN, activeFrequencies[arpeggioIndexPointer]);
+        }
+        return; 
+    }
+
+    // Envelope release for single note taps
+    if (isMusicMode && musicNotePendingStop) {
+        if (now - musicNoteOnTime >= 150) { 
+            noTone(BUZZER_PIN);
+            musicNotePendingStop = false;
+        }
+    }
+
+    // Process automated sound sequences
     if (isPlayingSound) {
         if (now - noteStartTime >= currentMelody[currentNoteIndex].duration) {
             currentNoteIndex++;
@@ -526,6 +647,7 @@ void updateSoundEngine() {
         }
     }
 
+    // Continuous reverse warning beep
     if (currentCmd == "BACKWARD" && !isMusicMode) {
         if (!isPlayingSound) { 
             if (now - lastBackupBeep >= 250) { 
@@ -546,7 +668,7 @@ void updateSoundEngine() {
     }
 }
 
-// Helper to draw text-only status strings during initial boot sequencing
+// Display boot status text
 void displayStatusLine(String text) {
     display.clearDisplay();
     display.setCursor(0, 16);
@@ -766,7 +888,6 @@ void updateFaceAnimation() {
             break;
         }
         case FACE_MUSIC_MODE: {
-            // --- SECRET INSTRUMENT INTERFACE FRAME ---
             display.fillCircle(10, 42, 4, SSD1306_WHITE);
             display.fillCircle(118, 42, 4, SSD1306_WHITE);
 
@@ -776,7 +897,7 @@ void updateFaceAnimation() {
             display.drawCircle(96, 28 + singBounce, 12, SSD1306_WHITE);
             display.fillRect(80, 28 + singBounce, 32, 14, SSD1306_BLACK);
 
-            int dynamicMouth = isPlayingSound ? 12 : (sin(now * 0.015) * 3 + 8);
+            int dynamicMouth = (activeFreqCount > 0) ? 14 : (sin(now * 0.015) * 3 + 8);
             display.fillCircle(64, 44, dynamicMouth, SSD1306_WHITE);
 
             for (int i = 0; i < 2; i++) {
@@ -909,7 +1030,7 @@ void updateFaceAnimation() {
                     display.drawLine(56, 46, 54, 49, SSD1306_WHITE);
                     display.drawLine(72, 46, 74, 49, SSD1306_WHITE);
 
-                    int crossX = 112, crossY = 10;
+                    int crossX = 112; float crossY = 10;
                     display.drawLine(crossX - 4, crossY, crossX + 4, crossY, SSD1306_WHITE);
                     display.drawLine(crossX, crossY - 4, crossX, crossY + 4, SSD1306_WHITE);
                     display.drawPixel(crossX - 2, crossY - 2, SSD1306_WHITE);
@@ -995,11 +1116,11 @@ void updateFaceAnimation() {
     display.display();
 }
 
-// Drive outputs to MX1508 H-Bridge with software Left Motor inversion
+// Process movement commands to motor controller
 void processMovement(String command) {
     unsigned long now = millis();
 
-    // Wake Up Trigger: If napping/yawning and receives a control signal -> wake up!
+    // Wake up from sleep/yawn on movement command
     if (command != "STOP" && (currentIdleAct == ACT_NAPPING || currentIdleAct == ACT_YAWNING)) {
         currentIdleAct = ACT_RESTING;
         idleActElapsedTime = 0;
@@ -1007,8 +1128,13 @@ void processMovement(String command) {
         triggerConnectedSound(); 
     }
 
-    // --- SECRET UNIVERSAL WIGGLE COMBO TOGGLE SWITCH ---
-    if (command != "STOP" && currentCmd == "STOP") {
+    // Ensure single command in drive mode (filter out compound commands)
+    if (!isMusicMode && command.indexOf(',') >= 0) {
+        command = command.substring(0, command.indexOf(','));
+    }
+
+    // Music mode unlock combo: LEFT -> RIGHT -> LEFT -> RIGHT
+    if (command != "STOP" && command != currentCmd && command.indexOf(",") < 0) {
         if (now - lastComboTapTime > 2000) {
             comboStateStep = 0; 
         }
@@ -1018,13 +1144,13 @@ void processMovement(String command) {
         else if (comboStateStep == 1 && command == "RIGHT") comboStateStep = 2;
         else if (comboStateStep == 2 && command == "LEFT") comboStateStep = 3;
         else if (comboStateStep == 3 && command == "RIGHT") {
-            comboStateStep = 0; // Combo sequence parsed successfully!
+            comboStateStep = 0; 
             
             if (!isMusicMode) {
                 isMusicMode = true;
                 currentFace = FACE_MUSIC_MODE;
                 triggerMusicModeUnlockSound(); 
-                webSocket.broadcastTXT("UI_MUSIC"); // Trigger 3x3 layout alphabetical notes
+                webSocket.broadcastTXT("UI_MUSIC"); 
             } else {
                 isMusicMode = false;
                 currentFace = FACE_IDLE;
@@ -1033,63 +1159,97 @@ void processMovement(String command) {
                 idleActDuration = random(2000, 10001);
                 sleepElapsedTime = 0; 
                 triggerMusicModeExitSound(); 
-                webSocket.broadcastTXT("UI_DRIVE"); // Toggle dashboard back to drive arrows
+                webSocket.broadcastTXT("UI_DRIVE"); 
             }
             currentCmd = "STOP";
+            activeFreqCount = 0;
+            musicInactivityElapsedTime = 0;
+            noTone(BUZZER_PIN);
             return;
         } else {
             comboStateStep = (command == "LEFT") ? 1 : 0;
         }
     }
 
-    // --- 9-NOTE INTRUMENT SIGNAL FREQUENCY MAPPER ---
-    if (command != currentCmd && command != "STOP") {
-        if (isMusicMode) {
-            if (command == "NW")             triggerMovementNote(523); // C5
-            else if (command == "FORWARD")   triggerMovementNote(587); // D5
-            else if (command == "NE")        triggerMovementNote(659); // E5
-            else if (command == "LEFT")      triggerMovementNote(698); // F5
-            else if (command == "CENTER")    triggerMovementNote(784); // G5
-            else if (command == "RIGHT")     triggerMovementNote(880); // A5
-            else if (command == "SW")        triggerMovementNote(988); // B5
-            else if (command == "BACKWARD")  triggerMovementNote(1047);// C6
-            else if (command == "SE")        triggerMovementNote(1175);// D6
-        } else {
-            if (command == "FORWARD")       triggerMovementNote(523); 
-            else if (command == "BACKWARD")  triggerMovementNote(587); 
-            else if (command == "LEFT")      triggerMovementNote(659); 
-            else if (command == "RIGHT")     triggerMovementNote(698); 
-        }
-    }
-    
-    currentCmd = command;
-
-    // Force absolute immobilization inside Music Mode
+    // Music mode note envelope and frequency processing
     if (isMusicMode) {
+        if (command == "STOP") {
+            // Release note after envelope duration
+            if (now - musicNoteOnTime >= 150) {
+                noTone(BUZZER_PIN);
+                musicNotePendingStop = false;
+            } else {
+                musicNotePendingStop = true;
+            }
+            activeFreqCount = 0; 
+        } else {
+            activeFreqCount = 0;
+            if (command.indexOf("NW") >= 0)      activeFrequencies[activeFreqCount++] = 523;
+            if (command.indexOf("FORWARD") >= 0) activeFrequencies[activeFreqCount++] = 587;
+            if (command.indexOf("NE") >= 0)      activeFrequencies[activeFreqCount++] = 659;
+            if (command.indexOf("LEFT") >= 0)     activeFrequencies[activeFreqCount++] = 698;
+            if (command.indexOf("CENTER") >= 0)   activeFrequencies[activeFreqCount++] = 784;
+            if (command.indexOf("RIGHT") >= 0)    activeFrequencies[activeFreqCount++] = 880;
+            if (command.indexOf("SW") >= 0)      activeFrequencies[activeFreqCount++] = 988;
+            if (command.indexOf("BACKWARD") >= 0) activeFrequencies[activeFreqCount++] = 1047;
+            if (command.indexOf("SE") >= 0)      activeFrequencies[activeFreqCount++] = 1175; 
+
+            if (activeFreqCount > 0) {
+                isPlayingSound = false;
+                currentNoteIndex = -1;
+                musicNoteOnTime = now;
+                musicNotePendingStop = false;
+
+                // Play single note immediately without chord arpeggiation
+                if (activeFreqCount == 1) {
+                    tone(BUZZER_PIN, activeFrequencies[0]);
+                }
+            }
+        }
+        currentCmd = command;
         digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW);
         digitalWrite(MOTOR_IN3, LOW); digitalWrite(MOTOR_IN4, LOW);
         return; 
     }
 
+    // Drive mode movement with directional audio feedback
+    if (command != currentCmd && command != "STOP") {
+        if (command == "FORWARD")       triggerMovementNote(523); 
+        else if (command == "BACKWARD")  triggerMovementNote(587); 
+        else if (command == "LEFT")      triggerMovementNote(659); 
+        else if (command == "RIGHT")     triggerMovementNote(698); 
+    }
+    
+    currentCmd = command;
     if (command == "FORWARD") {
-        digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW);
-        digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, HIGH);
+        digitalWrite(MOTOR_IN1, HIGH);
+        digitalWrite(MOTOR_IN2, LOW);
+        digitalWrite(MOTOR_IN3, LOW);
+        digitalWrite(MOTOR_IN4, HIGH);
     } else if (command == "BACKWARD") {
-        digitalWrite(MOTOR_IN1, LOW);  digitalWrite(MOTOR_IN2, HIGH);
-        digitalWrite(MOTOR_IN3, HIGH); digitalWrite(MOTOR_IN4, LOW);
+        digitalWrite(MOTOR_IN1, LOW);
+        digitalWrite(MOTOR_IN2, HIGH);
+        digitalWrite(MOTOR_IN3, HIGH);
+        digitalWrite(MOTOR_IN4, LOW);
     } else if (command == "LEFT") {
-        digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW);
-        digitalWrite(MOTOR_IN3, HIGH); digitalWrite(MOTOR_IN4, LOW);
+        digitalWrite(MOTOR_IN1, HIGH);
+        digitalWrite(MOTOR_IN2, LOW);
+        digitalWrite(MOTOR_IN3, HIGH);
+        digitalWrite(MOTOR_IN4, LOW);
     } else if (command == "RIGHT") {
-        digitalWrite(MOTOR_IN1, LOW);  digitalWrite(MOTOR_IN2, HIGH);
-        digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, HIGH);
-    } else { // STOP
-        digitalWrite(MOTOR_IN1, LOW);  digitalWrite(MOTOR_IN2, LOW);
-        digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, LOW);
+        digitalWrite(MOTOR_IN1, LOW);
+        digitalWrite(MOTOR_IN2, HIGH);
+        digitalWrite(MOTOR_IN3, LOW);
+        digitalWrite(MOTOR_IN4, HIGH);
+    } else {
+        digitalWrite(MOTOR_IN1, LOW);
+        digitalWrite(MOTOR_IN2, LOW);
+        digitalWrite(MOTOR_IN3, LOW);
+        digitalWrite(MOTOR_IN4, LOW);
     }
 }
 
-// WebSocket client packet handler
+// Handle WebSocket events from dashboard
 void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t length) {
     if (type == WStype_TEXT) {
         String cmd = String((char*)payload);
@@ -1196,17 +1356,39 @@ void setup() {
 }
 
 void loop() {
-    // --- COMPUTE GLOBAL TIME DELTA ---
+    // Calculate delta time for frame updates
     unsigned long now = millis();
     unsigned long dt = now - lastLoopTime;
     lastLoopTime = now;
 
-    // --- ACCUMULATE ELAPSED TIME STRICTLY IF WE ARE STOPPED ---
+    // Accumulate idle time when stopped
     if (currentCmd == "STOP" && !isMusicMode) {
         idleActElapsedTime += dt;
         sleepElapsedTime += dt;
     } else {
         sleepElapsedTime = 0; 
+    }
+
+    // Auto-exit music mode after 10 seconds of inactivity
+    if (isMusicMode) {
+        if (currentCmd == "STOP") {
+            musicInactivityElapsedTime += dt;
+            if (musicInactivityElapsedTime >= 10000) { 
+                isMusicMode = false;
+                musicInactivityElapsedTime = 0;
+                currentFace = FACE_IDLE;
+                currentIdleAct = ACT_RESTING;
+                idleActElapsedTime = 0;
+                idleActDuration = random(2000, 10001);
+                sleepElapsedTime = 0; 
+                triggerMusicModeExitSound(); 
+                webSocket.broadcastTXT("UI_DRIVE"); 
+            }
+        } else {
+            musicInactivityElapsedTime = 0; 
+        }
+    } else {
+        musicInactivityElapsedTime = 0;
     }
 
     dnsServer.processNextRequest(); 
@@ -1271,7 +1453,7 @@ void loop() {
         }
     }
 
-    // --- SLEEP MODE OVERRIDE (2-Minute Inactivity Monitor) ---
+    // Enter sleep mode after 2 minutes of inactivity
     if (currentFace == FACE_IDLE && currentCmd == "STOP" && !isCharging && !isBatteryLow && !isMusicMode) {
         if (sleepElapsedTime >= sleepThreshold) {
             if (currentIdleAct != ACT_NAPPING && currentIdleAct != ACT_YAWNING) {
@@ -1283,7 +1465,7 @@ void loop() {
         }
     }
 
-    // --- DYNAMIC SEQUENTIAL IDLE SCHEDULER ---
+    // Idle activity animation scheduler
     if (currentFace == FACE_IDLE && !isMusicMode) {
         if (sleepElapsedTime >= sleepThreshold && currentIdleAct == ACT_NAPPING) {
             // LOCKED SLEEP STATE
@@ -1336,9 +1518,9 @@ void loop() {
     
     lastActiveClients = activeClients;
 
-    // --- 30 FPS DISPLAY FRAME LIMITER ---
+    // Update display at 30 FPS
     static unsigned long lastDisplayUpdate = 0;
-    if (now - lastDisplayUpdate >= 33) { 
+    if (now - lastDisplayUpdate >= 33) {
         lastDisplayUpdate = now;
         updateFaceAnimation();
     }
