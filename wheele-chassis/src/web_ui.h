@@ -115,8 +115,7 @@ body {
   background:linear-gradient(90deg, transparent, rgba(255,183,3,.2), transparent);
 }
 
-.light .theme-btn { border-color:rgba(224,122,95,.25); color:var(--a); }
-.light .theme-btn:hover { background:rgba(224,122,95,.1); }
+
 
 /* ── Panel ────────────────────────────────────────────────────────────── */
 .panel {
@@ -169,23 +168,30 @@ body {
 }
 
 .logo {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  outline: none;
+  font-family: inherit;
+  line-height: inherit;
   font-size:.78rem; font-weight:800; letter-spacing:5px; text-transform:uppercase;
   color:var(--a); text-shadow:0 0 18px rgba(224,122,95,0);
   transition:color .6s, text-shadow .6s;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 .panel.music .logo { color:var(--m); text-shadow:0 0 18px var(--m-glow); }
 
 .header-right { display:flex; align-items:center; gap:8px; }
 
-/* Theme toggle button */
-.theme-btn {
-  width:26px; height:26px; border-radius:50%; border:1px solid rgba(224,122,95,.2);
-  background:transparent; cursor:pointer; font-size:.8rem; line-height:1;
-  display:flex; align-items:center; justify-content:center;
-  color:var(--a); opacity:.7; transition:opacity .3s, background .3s, border-color .3s;
-  padding:0;
-}
-.theme-btn:hover { opacity:1; background:rgba(224,122,95,.08); }
+
 
 /* Connection indicator */
 .conn { display:flex; align-items:center; gap:6px; }
@@ -227,10 +233,20 @@ body {
   background:linear-gradient(90deg, transparent, rgba(255,183,3,.12), transparent);
 }
 .badge {
+  background:var(--a-soft); border:1px solid rgba(224,122,95,.2);
+  font-family: inherit;
+  outline: none;
   font-size:.52rem; font-weight:800; letter-spacing:3px; text-transform:uppercase;
   padding:3px 11px; border-radius:100px;
-  background:var(--a-soft); border:1px solid rgba(224,122,95,.2);
   color:rgba(224,122,95,.75); transition:all .6s ease;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
 }
 .panel.music .badge {
   background:var(--m-soft); border-color:rgba(255,183,3,.25); color:rgba(255,183,3,.85);
@@ -253,7 +269,7 @@ body {
 }
 
 .ico  { font-size:1.3rem; line-height:1; z-index:1; color:rgba(245,234,228,.28); transition:color .1s; }
-.note { font-size:.64rem; font-weight:900; letter-spacing:.8px; z-index:1; color:rgba(245,234,228,.32); transition:color .1s, font-size .2s; }
+.note { display:none; font-size:.64rem; font-weight:900; letter-spacing:.8px; z-index:1; color:rgba(245,234,228,.32); transition:color .1s, font-size .2s; }
 
 @media (hover:hover) {
   .btn:not(.ghost):not(.on):hover {
@@ -285,7 +301,7 @@ body {
   background:linear-gradient(155deg, rgba(255,183,3,.025), rgba(0,0,0,.26));
 }
 .panel.music .btn .ico { display:none; }
-.panel.music .btn .note { font-size:.72rem; letter-spacing:.5px; color:rgba(255,183,3,.5); }
+.panel.music .btn .note { display:block; font-size:.72rem; letter-spacing:.5px; color:rgba(255,183,3,.5); }
 
 @media (hover:hover) {
   .panel.music .btn:not(.on):hover {
@@ -313,6 +329,96 @@ body {
   animation:ripout .55s ease-out forwards;
 }
 @keyframes ripout { to { transform:scale(5.5); opacity:0; } }
+
+/* Volume HUD */
+.vol-hud {
+  position: absolute;
+  top: 60px;
+  left: 18px;
+  right: 18px;
+  height: 48px;
+  background: rgba(18, 9, 5, 0.95);
+  border: 1px solid rgba(224, 122, 95, 0.25);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.6s ease;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.panel.music .vol-hud {
+  background: rgba(10, 7, 3, 0.95);
+  border-color: rgba(255, 183, 3, 0.3);
+}
+.vol-hud.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.vol-icon {
+  font-size: 1.1rem;
+  color: var(--a);
+  text-shadow: 0 0 8px var(--a-glow);
+  transition: color 0.6s ease, text-shadow 0.6s ease;
+}
+.panel.music .vol-icon {
+  color: var(--m);
+  text-shadow: 0 0 8px var(--m-glow);
+}
+.vol-track {
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+.vol-fill {
+  height: 100%;
+  width: 100%;
+  background: var(--a);
+  box-shadow: 0 0 10px var(--a-glow);
+  border-radius: 3px;
+  transition: width 0.05s linear, background 0.6s ease, box-shadow 0.6s ease;
+}
+.panel.music .vol-fill {
+  background: var(--m);
+  box-shadow: 0 0 10px var(--m-glow);
+}
+.vol-val {
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-family: monospace;
+  color: var(--a);
+  text-shadow: 0 0 8px var(--a-glow);
+  width: 38px;
+  text-align: right;
+  transition: color 0.6s ease, text-shadow 0.6s ease;
+}
+.panel.music .vol-val {
+  color: var(--m);
+  text-shadow: 0 0 8px var(--m-glow);
+}
+
+/* Light Theme Volume HUD */
+.light .vol-hud {
+  background: rgba(255, 252, 250, 0.96);
+  border-color: rgba(224, 122, 95, 0.35);
+  box-shadow: 0 8px 32px rgba(160, 80, 40, 0.15);
+}
+.light .panel.music .vol-hud {
+  border-color: rgba(255, 183, 3, 0.45);
+}
+.light .vol-track {
+  background: rgba(0, 0, 0, 0.06);
+}
 </style>
 </head>
 <body>
@@ -325,11 +431,19 @@ body {
   <div class="c c-bl"></div><div class="c c-br"></div>
   <div class="glow" id="glow"></div>
 
+  <!-- Volume HUD -->
+  <div class="vol-hud" id="volHud">
+    <div class="vol-icon" id="volIcon">&#128266;</div>
+    <div class="vol-track">
+      <div class="vol-fill" id="volFill"></div>
+    </div>
+    <span class="vol-val" id="volVal">100%</span>
+  </div>
+
   <!-- Header -->
   <div class="header">
-    <span class="logo" id="logo">WHEEL-E</span>
+    <button class="logo" id="logo" type="button">WHEEL-E</button>
     <div class="header-right">
-      <button class="theme-btn" id="themeBtn" title="Toggle theme">&#9788;</button>
       <div class="conn">
         <div class="ring" id="ring"><div class="dot"></div></div>
         <span class="conn-lbl" id="connLbl">OFFLINE</span>
@@ -340,7 +454,7 @@ body {
   <!-- Mode strip -->
   <div class="strip">
     <div class="strip-line"></div>
-    <span class="badge" id="badge">DRIVE</span>
+    <button class="badge" id="badge" type="button">DRIVE</button>
     <div class="strip-line"></div>
   </div>
 
@@ -368,7 +482,6 @@ const connLbl  = document.getElementById('connLbl');
 const badge    = document.getElementById('badge');
 const glowEl   = document.getElementById('glow');
 const grid     = document.getElementById('grid');
-const themeBtn = document.getElementById('themeBtn');
 
 let ws, isMouseDown = false;
 let lastSent = 'STOP', lastValid = 'STOP', lastCmdTime = 0;
@@ -378,14 +491,13 @@ let isMusic = false;
 // ── Theme ─────────────────────────────────────────────────────────────────────
 function applyTheme(light) {
   document.documentElement.classList.toggle('light', light);
-  themeBtn.innerHTML = light ? '&#9790;' : '&#9788;'; // moon : sun
   try { localStorage.setItem('we-theme', light ? '1' : '0'); } catch(e) {}
 }
 // Restore saved theme on load
 try {
   applyTheme(localStorage.getItem('we-theme') === '1');
 } catch(e) {}
-themeBtn.addEventListener('click', () =>
+logo.addEventListener('click', () =>
   applyTheme(!document.documentElement.classList.contains('light'))
 );
 
@@ -533,6 +645,109 @@ grid.addEventListener('touchstart',  onTouch, { passive:false });
 grid.addEventListener('touchmove',   onTouch, { passive:false });
 grid.addEventListener('touchend',    onTouch, { passive:false });
 grid.addEventListener('touchcancel', onTouch, { passive:false });
+
+// ── Volume Control JS variables ───────────────────────────────────────────────
+const volHud   = document.getElementById('volHud');
+const volFill  = document.getElementById('volFill');
+const volVal   = document.getElementById('volVal');
+const volIcon  = document.getElementById('volIcon');
+
+let lastLogoTapTime = 0;
+let isVolumeSliding = false;
+let volumeStartX = 0;
+let volumeStartVal = 100;
+let currentVolume = 100;
+let hideVolTimeout = null;
+
+function showVolumeHUD() {
+  if (hideVolTimeout) clearTimeout(hideVolTimeout);
+  volHud.classList.add('show');
+}
+function hideVolumeHUD() {
+  if (hideVolTimeout) clearTimeout(hideVolTimeout);
+  hideVolTimeout = setTimeout(() => {
+    volHud.classList.remove('show');
+  }, 1000);
+}
+function updateVolumeHUD(val) {
+  volFill.style.width = val + '%';
+  volVal.textContent = val + '%';
+  if (val === 0) volIcon.innerHTML = '&#128263;';
+  else if (val < 40) volIcon.innerHTML = '&#128264;';
+  else if (val < 80) volIcon.innerHTML = '&#128265;';
+  else volIcon.innerHTML = '&#128266;';
+}
+
+// ── Badge touch/mouse hold-and-slide gesture listeners ────────────────────────
+// Block context menu on badge to prevent text selection and browser popups
+badge.addEventListener('contextmenu', e => e.preventDefault());
+
+badge.addEventListener('mousedown', e => {
+  e.preventDefault(); // Always block text selection / browser action on badge
+  isVolumeSliding = true;
+  volumeStartX = e.clientX;
+  volumeStartVal = currentVolume;
+  showVolumeHUD();
+});
+
+window.addEventListener('mousemove', e => {
+  if (isVolumeSliding) {
+    const dx = e.clientX - volumeStartX;
+    const scale = 0.5;
+    let newVal = Math.round(volumeStartVal + dx * scale);
+    newVal = Math.max(0, Math.min(100, newVal));
+    if (newVal !== currentVolume) {
+      currentVolume = newVal;
+      updateVolumeHUD(newVal);
+      send('VOL:' + newVal);
+    }
+  }
+});
+
+window.addEventListener('mouseup', () => {
+  if (isVolumeSliding) {
+    isVolumeSliding = false;
+    hideVolumeHUD();
+  }
+});
+
+badge.addEventListener('touchstart', e => {
+  e.preventDefault(); // Always block long-press selection / magnifying glass on badge
+  const touch = e.touches[0];
+  isVolumeSliding = true;
+  volumeStartX = touch.clientX;
+  volumeStartVal = currentVolume;
+  showVolumeHUD();
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+  if (isVolumeSliding) {
+    const touch = e.touches[0];
+    const dx = touch.clientX - volumeStartX;
+    const scale = 0.5;
+    let newVal = Math.round(volumeStartVal + dx * scale);
+    newVal = Math.max(0, Math.min(100, newVal));
+    if (newVal !== currentVolume) {
+      currentVolume = newVal;
+      updateVolumeHUD(newVal);
+      send('VOL:' + newVal);
+    }
+    e.preventDefault();
+  }
+}, { passive: false });
+
+window.addEventListener('touchend', () => {
+  if (isVolumeSliding) {
+    isVolumeSliding = false;
+    hideVolumeHUD();
+  }
+});
+window.addEventListener('touchcancel', () => {
+  if (isVolumeSliding) {
+    isVolumeSliding = false;
+    hideVolumeHUD();
+  }
+});
 
 connect();
 </script>

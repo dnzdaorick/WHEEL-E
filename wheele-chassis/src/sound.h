@@ -30,6 +30,8 @@ extern unsigned long lastBackupBeep;
 extern bool          backupBeepState;
 
 // ── API ───────────────────────────────────────────────────────────────────────
+extern uint8_t buzzerVolume;
+void customTone(uint8_t pin, unsigned int frequency);
 void playMelody(int length);
 void updateSoundEngine();
 

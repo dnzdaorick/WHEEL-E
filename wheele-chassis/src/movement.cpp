@@ -29,6 +29,14 @@ static void setMotors(bool in1, bool in2, bool in3, bool in4) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 void processMovement(const char* command) {
+    if (strncmp(command, "VOL:", 4) == 0) {
+        int val = atoi(command + 4);
+        if (val >= 0 && val <= 100) {
+            buzzerVolume = val;
+        }
+        return;
+    }
+
     unsigned long now = millis();
 
     // Work on a mutable local copy so we can truncate compound commands safely
@@ -132,7 +140,7 @@ void processMovement(const char* command) {
                 musicNotePendingStop = false;
                 // Single note: play immediately; chord: arpeggio handles it
                 if (activeFreqCount == 1) {
-                    tone(BUZZER_PIN, activeFrequencies[0]);
+                    customTone(BUZZER_PIN, activeFrequencies[0]);
                 }
             }
         }

@@ -1,5 +1,8 @@
 #include "sound.h"
 
+uint8_t buzzerVolume = 100;
+
+
 // ── Melodic Sequencer State ───────────────────────────────────────────────────
 Note          currentMelody[MAX_NOTES];
 int           melodyLength     = 0;
@@ -26,7 +29,7 @@ void playMelody(int length) {
     noteStartTime   = millis();
     isPlayingSound  = true;
     if (currentMelody[0].frequency > 0) {
-        tone(BUZZER_PIN, currentMelody[0].frequency);
+        customTone(BUZZER_PIN, currentMelody[0].frequency);
     } else {
         noTone(BUZZER_PIN);
     }
@@ -34,104 +37,103 @@ void playMelody(int length) {
 
 // ── Sound Library ─────────────────────────────────────────────────────────────
 void triggerBootSound() {
-    currentMelody[0] = {523,  100};  // C5
-    currentMelody[1] = {659,  100};  // E5
-    currentMelody[2] = {784,  100};  // G5
-    currentMelody[3] = {1047, 180};  // C6
-    playMelody(4);
+    currentMelody[0] = {523,  60};   // C5
+    currentMelody[1] = {659,  60};   // E5
+    currentMelody[2] = {784,  60};   // G5
+    currentMelody[3] = {1047, 60};   // C6
+    currentMelody[4] = {1319, 120};  // E6
+    playMelody(5);
 }
 
 void triggerConnectedSound() {
-    currentMelody[0] = {880,  80};   // A5
-    currentMelody[1] = {1047, 80};   // C6
-    currentMelody[2] = {1319, 80};   // E6
-    currentMelody[3] = {1568, 150};  // G6
-    playMelody(4);
+    currentMelody[0] = {1319, 50};   // E6
+    currentMelody[1] = {1568, 50};   // G6
+    currentMelody[2] = {2093, 100};  // C7
+    playMelody(3);
 }
 
 void triggerDisconnectedSound() {
-    currentMelody[0] = {784, 150};
-    currentMelody[1] = {622, 150};
-    currentMelody[2] = {494, 250};
+    currentMelody[0] = {784,  100};  // G5 (sad drop)
+    currentMelody[1] = {587,  100};  // D5
+    currentMelody[2] = {494,  200};  // B4
     playMelody(3);
 }
 
 void triggerBlinkSound() {
-    currentMelody[0] = {2000, 15};
+    currentMelody[0] = {2400, 10};   // ultra high chirp
     playMelody(1);
 }
 
 void triggerYawnSound() {
-    currentMelody[0] = {700, 70};
-    currentMelody[1] = {600, 70};
-    currentMelody[2] = {500, 70};
-    currentMelody[3] = {400, 70};
-    currentMelody[4] = {300, 150};
-    currentMelody[5] = {350, 150};
+    currentMelody[0] = {880,  90};   // A5 (drooping slide)
+    currentMelody[1] = {784,  100};  // G5
+    currentMelody[2] = {698,  110};  // F5
+    currentMelody[3] = {659,  130};  // E5
+    currentMelody[4] = {587,  150};  // D5
+    currentMelody[5] = {523,  250};  // C5
     playMelody(6);
 }
 
 void triggerSingingSound() {
-    currentMelody[0] = {523,  80};
-    currentMelody[1] = {659,  80};
-    currentMelody[2] = {784,  80};
-    currentMelody[3] = {1047, 80};
-    currentMelody[4] = {1319, 80};
-    currentMelody[5] = {1568, 150};
-    playMelody(6);
+    currentMelody[0] = {523,  120};  // C5 (cheerful motif)
+    currentMelody[1] = {784,  120};  // G5
+    currentMelody[2] = {880,  120};  // A5
+    currentMelody[3] = {784,  120};  // G5
+    currentMelody[4] = {1047, 240};  // C6
+    playMelody(5);
 }
 
 void triggerGiggleSound() {
-    currentMelody[0] = {1300, 60};
-    currentMelody[1] = {1600, 60};
-    currentMelody[2] = {1400, 60};
-    currentMelody[3] = {1800, 60};
-    currentMelody[4] = {1500, 60};
-    currentMelody[5] = {1900, 120};
+    currentMelody[0] = {1319, 45};   // Fast high giggles
+    currentMelody[1] = {1568, 45};
+    currentMelody[2] = {1319, 45};
+    currentMelody[3] = {1568, 45};
+    currentMelody[4] = {1319, 45};
+    currentMelody[5] = {1568, 100};
     playMelody(6);
 }
 
 void triggerLookingSound() {
-    currentMelody[0] = {2100, 15};
-    currentMelody[1] = {0,    100};   // rest
-    currentMelody[2] = {2300, 15};
+    currentMelody[0] = {1047, 30};   // C6
+    currentMelody[1] = {0,    40};    // rest
+    currentMelody[2] = {1319, 40};   // E6 (curious double chirp)
     playMelody(3);
 }
 
 void triggerDizzySound() {
-    currentMelody[0] = {900,  80};
-    currentMelody[1] = {700,  80};
-    currentMelody[2] = {500,  80};
-    currentMelody[3] = {600,  80};
-    currentMelody[4] = {800,  80};
-    currentMelody[5] = {1000, 150};
+    currentMelody[0] = {880,  70};   // Wobbly out-of-tune spiral
+    currentMelody[1] = {659,  70};
+    currentMelody[2] = {784,  70};
+    currentMelody[3] = {587,  70};
+    currentMelody[4] = {740,  70};   // F#5
+    currentMelody[5] = {554,  150};  // C#5
     playMelody(6);
 }
 
 void triggerPoutingSound() {
-    currentMelody[0] = {220, 150};
-    currentMelody[1] = {180, 150};
-    currentMelody[2] = {200, 250};
+    currentMelody[0] = {110, 150};   // A2 (low buzz growl)
+    currentMelody[1] = {98,  150};   // G2
+    currentMelody[2] = {104, 250};   // G#2
     playMelody(3);
 }
 
 void triggerSighSound() {
-    currentMelody[0] = {440, 100};
-    currentMelody[1] = {380, 100};
-    currentMelody[2] = {311, 100};
-    currentMelody[3] = {220, 120};
-    currentMelody[4] = {147, 250};
+    currentMelody[0] = {330,  120};  // E4 (long exhalation)
+    currentMelody[1] = {294,  120};  // D4
+    currentMelody[2] = {262,  140};  // C4
+    currentMelody[3] = {247,  160};  // B3
+    currentMelody[4] = {220,  300};  // A3
     playMelody(5);
 }
 
 void triggerSneezeSound() {
-    currentMelody[0] = {400,  150};
-    currentMelody[1] = {500,  150};
-    currentMelody[2] = {600,  150};
-    currentMelody[3] = {700,  200};
-    currentMelody[4] = {0,    150};   // rest
-    currentMelody[5] = {1800, 80};
-    currentMelody[6] = {300,  200};
+    currentMelody[0] = {880,  60};   // A5 (rapid inhale build)
+    currentMelody[1] = {988,  60};   // B5
+    currentMelody[2] = {1047, 60};   // C6
+    currentMelody[3] = {1175, 120};  // D6
+    currentMelody[4] = {0,    140};  // hold
+    currentMelody[5] = {2794, 60};   // F7 (sneeze burst!)
+    currentMelody[6] = {262,  200};  // C4 (sigh release)
     playMelody(7);
 }
 
@@ -159,26 +161,28 @@ void triggerMusicModeExitSound() {
 }
 
 void triggerChargingPluggedSound() {
-    currentMelody[0] = {523,  100};
-    currentMelody[1] = {784,  100};
-    currentMelody[2] = {1047, 150};
-    playMelody(3);
+    currentMelody[0] = {523,  80};   // C5
+    currentMelody[1] = {659,  80};   // E5
+    currentMelody[2] = {784,  80};   // G5
+    currentMelody[3] = {1047, 150};  // C6
+    playMelody(4);
 }
 
 void triggerLowBatterySound() {
-    currentMelody[0] = {220, 200};
-    currentMelody[1] = {0,   150};    // rest
-    currentMelody[2] = {220, 200};
+    currentMelody[0] = {440, 150};   // A4 alert beep
+    currentMelody[1] = {0,   100};
+    currentMelody[2] = {440, 150};
     playMelody(3);
 }
 
 void triggerFullChargeSound() {
-    currentMelody[0] = {523,  80};
-    currentMelody[1] = {659,  80};
-    currentMelody[2] = {784,  80};
-    currentMelody[3] = {988,  80};
-    currentMelody[4] = {1047, 250};
-    playMelody(5);
+    currentMelody[0] = {523,  60};   // Triumphant fanfare
+    currentMelody[1] = {659,  60};
+    currentMelody[2] = {784,  60};
+    currentMelody[3] = {1047, 60};
+    currentMelody[4] = {1319, 60};
+    currentMelody[5] = {1568, 200};
+    playMelody(6);
 }
 
 // ── Background Sound Engine ───────────────────────────────────────────────────
@@ -190,7 +194,7 @@ void updateSoundEngine() {
         if (now - lastArpeggioFrameTime >= 18) {
             lastArpeggioFrameTime = now;
             arpeggioIndexPointer = (arpeggioIndexPointer + 1) % activeFreqCount;
-            tone(BUZZER_PIN, activeFrequencies[arpeggioIndexPointer]);
+            customTone(BUZZER_PIN, activeFrequencies[arpeggioIndexPointer]);
         }
         return;  // arpeggio owns the buzzer while active
     }
@@ -210,7 +214,7 @@ void updateSoundEngine() {
             if (currentNoteIndex < melodyLength) {
                 noteStartTime = now;
                 if (currentMelody[currentNoteIndex].frequency > 0) {
-                    tone(BUZZER_PIN, currentMelody[currentNoteIndex].frequency);
+                    customTone(BUZZER_PIN, currentMelody[currentNoteIndex].frequency);
                 } else {
                     noTone(BUZZER_PIN);
                 }
@@ -229,7 +233,7 @@ void updateSoundEngine() {
                 lastBackupBeep  = now;
                 backupBeepState = !backupBeepState;
                 if (backupBeepState) {
-                    tone(BUZZER_PIN, 349);
+                    customTone(BUZZER_PIN, 349);
                 } else {
                     noTone(BUZZER_PIN);
                 }
@@ -242,3 +246,24 @@ void updateSoundEngine() {
         }
     }
 }
+
+void customTone(uint8_t pin, unsigned int frequency) {
+    uint8_t channel = 0;
+    if (frequency == 0 || buzzerVolume == 0) {
+        ledcWrite(channel, 0);
+        noTone(pin);
+        return;
+    }
+    ledcSetup(channel, frequency, 8);
+    ledcAttachPin(pin, channel);
+    // Cubic scaling for human hearing and to counteract the piezo buzzer's sharp response threshold
+    float volFrac = (float)buzzerVolume / 100.0f;
+    float volCubic = volFrac * volFrac * volFrac;
+    
+    uint32_t minDuty = 3;
+    uint32_t maxDuty = 127;
+    uint32_t duty = minDuty + (uint32_t)((maxDuty - minDuty) * volCubic);
+    
+    ledcWrite(channel, duty);
+}
+
