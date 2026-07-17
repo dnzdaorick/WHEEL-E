@@ -15,8 +15,8 @@
 #define OLED_SDA  8  
 #define OLED_SCL  9  
 #define BUZZER_PIN 10 
-#define BATTERY_PIN 4   // ADC1_CH4 for battery voltage divider
-#define CHARGING_PIN 5  // Digital input for charging status (LOW = Charging)
+#define BATTERY_PIN 4  
+#define CHARGING_PIN 5  
 
 // Display settings
 #define SCREEN_WIDTH 128
@@ -33,7 +33,6 @@ DNSServer dnsServer;
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 
-// Copper Glassmorphism Dashboard HTML
 const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html lang="en">
@@ -60,7 +59,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             background: rgba(216, 122, 65, 0.03);
             border: 1px solid rgba(216, 122, 65, 0.12);
             border-radius: 28px;
-            padding: 35px 25px;
+            padding: 40px 25px;
             box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65), inset 0 1px 1px rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(25px);
             -webkit-backdrop-filter: blur(25px);
@@ -72,6 +71,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             letter-spacing: 3px; 
             color: #e07a5f; 
             text-shadow: 0 0 12px rgba(224, 122, 95, 0.45); 
+            transition: all 0.5s ease;
+        }
+        .card.music-mode-active h1 {
+            color: #ffb703;
+            text-shadow: 0 0 18px rgba(255, 183, 3, 0.7);
+            letter-spacing: 5px;
         }
         .status-bar { 
             font-size: 0.85rem; 
@@ -98,7 +103,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
-            margin-bottom: 25px;
         }
         .btn {
             background: rgba(216, 122, 65, 0.05);
@@ -121,29 +125,64 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             box-shadow: 0 0 25px rgba(224, 122, 95, 0.55);
             transform: scale(0.92);
         }
-        .btn.empty { background: transparent; border: none; cursor: default; pointer-events: none; }
+        /* NORMAL MODE: Hide structural note pads into absolute invisible layout spacers */
+        .btn.music-only-pad {
+            opacity: 0;
+            pointer-events: none;
+            visibility: hidden;
+            transition: all 0.4s ease;
+        }
+        /* MUSIC MODE: Bring all 9 note keys out vividly */
+        .card.music-mode-active .btn {
+            border-color: rgba(255, 183, 3, 0.3);
+            background: rgba(255, 183, 3, 0.03);
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #ffeeb2;
+            opacity: 1;
+            pointer-events: auto;
+            visibility: visible;
+        }
+        .card.music-mode-active .btn:active {
+            background: #ffb703;
+            color: #023047;
+            border-color: #ffb703;
+            box-shadow: 0 0 25px rgba(255, 183, 3, 0.6);
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>WHEEL-E</h1>
+    <div class="card" id="dashboardCard">
+        <h1 id="mainTitle">WHEEL-E</h1>
         <div class="status-bar"><span class="dot" id="dot"></span> <span id="lbl">DISCONNECTED</span></div>
         <div class="control-grid">
-            <div class="btn empty"></div>
+            <div class="btn music-only-pad" id="nw" data-cmd="NW"></div>
             <div class="btn" id="up" data-cmd="FORWARD">▲</div>
-            <div class="btn empty"></div>
+            <div class="btn music-only-pad" id="ne" data-cmd="NE"></div>
             <div class="btn" id="left" data-cmd="LEFT">◀</div>
-            <div class="btn empty"></div>
+            <div class="btn music-only-pad" id="center" data-cmd="CENTER"></div>
             <div class="btn" id="right" data-cmd="RIGHT">▶</div>
-            <div class="btn empty"></div>
+            <div class="btn music-only-pad" id="sw" data-cmd="SW"></div>
             <div class="btn" id="down" data-cmd="BACKWARD">▼</div>
-            <div class="btn empty"></div>
+            <div class="btn music-only-pad" id="se" data-cmd="SE"></div>
         </div>
     </div>
     <script>
         let ws;
         const dot = document.getElementById('dot');
         const lbl = document.getElementById('lbl');
+        const card = document.getElementById('dashboardCard');
+        const title = document.getElementById('mainTitle');
+        
+        const btnNW = document.getElementById('nw');
+        const btnUp = document.getElementById('up');
+        const btnNE = document.getElementById('ne');
+        const btnLeft = document.getElementById('left');
+        const btnCenter = document.getElementById('center');
+        const btnRight = document.getElementById('right');
+        const btnSW = document.getElementById('sw');
+        const btnDown = document.getElementById('down');
+        const btnSE = document.getElementById('se');
         
         function connect() {
             ws = new WebSocket('ws://' + window.location.hostname + ':81/');
@@ -151,11 +190,47 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 dot.classList.add('connected');
                 lbl.innerText = 'CONNECTED';
             };
+            ws.onmessage = (evt) => {
+                if (evt.data === "UI_MUSIC") {
+                    setMusicUI(true);
+                } else if (evt.data === "UI_DRIVE") {
+                    setMusicUI(false);
+                }
+            };
             ws.onclose = () => {
                 dot.classList.remove('connected');
                 lbl.innerText = 'DISCONNECTED';
+                setMusicUI(false);
                 setTimeout(connect, 2000);
             };
+        }
+        
+        function setMusicUI(isMusic) {
+            if (isMusic) {
+                card.classList.add('music-mode-active');
+                title.innerText = "SYNTHESIZER";
+                btnNW.innerText = "Do";
+                btnUp.innerText = "Re";
+                btnNE.innerText = "Mi";
+                btnLeft.innerText = "Fa";
+                btnCenter.innerText = "Sol";
+                btnRight.innerText = "La";
+                btnSW.innerText = "Si";
+                btnDown.innerText = "Do+";
+                btnSE.innerText = "Re+";
+            } else {
+                card.classList.remove('music-mode-active');
+                title.innerText = "WHEEL-E";
+                btnNW.innerText = "";
+                btnUp.innerText = "▲";
+                btnNE.innerText = "";
+                btnLeft.innerText = "◀";
+                btnCenter.innerText = "";
+                btnRight.innerText = "▶";
+                btnSW.innerText = "";
+                btnDown.innerText = "▼";
+                btnSE.innerText = "";
+            }
         }
         
         function send(cmd) {
@@ -164,7 +239,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
         }
         
-        document.querySelectorAll('.btn:not(.empty)').forEach(btn => {
+        document.querySelectorAll('.btn').forEach(btn => {
             const cmd = btn.getAttribute('data-cmd');
             btn.addEventListener('mousedown', () => send(cmd));
             btn.addEventListener('mouseup', () => { if(cmd !== 'STOP') send('STOP'); });
@@ -191,7 +266,8 @@ enum FaceState {
     FACE_RIGHT,
     FACE_CHARGING,
     FACE_FULL_CHARGE,
-    FACE_LOW_BATTERY
+    FACE_LOW_BATTERY,
+    FACE_MUSIC_MODE   
 };
 
 FaceState currentFace = FACE_BOOTING;
@@ -220,6 +296,11 @@ unsigned long idleActElapsedTime = 0;
 unsigned long idleActDuration = 5000;        
 unsigned long sleepElapsedTime = 0;          
 const unsigned long sleepThreshold = 120000; 
+
+// --- SECRET UNIVERSAL COMBO SWITCH CONTROLLERS ---
+bool isMusicMode = false;
+unsigned long lastComboTapTime = 0;
+int comboStateStep = 0; 
 
 // Non-blocking OLED Animation Timers
 unsigned long lastBlinkTime = 0;
@@ -268,18 +349,18 @@ void playMelody(int length) {
 
 // Sound Library
 void triggerBootSound() {
-    currentMelody[0] = {523, 100};  // C5
-    currentMelody[1] = {659, 100};  // E5
-    currentMelody[2] = {784, 100};  // G5
-    currentMelody[3] = {1047, 180}; // C6
+    currentMelody[0] = {523, 100}; 
+    currentMelody[1] = {659, 100}; 
+    currentMelody[2] = {784, 100}; 
+    currentMelody[3] = {1047, 180};
     playMelody(4);
 }
 
 void triggerConnectedSound() {
-    currentMelody[0] = {880, 80};   // A5
-    currentMelody[1] = {1047, 80};  // C6
-    currentMelody[2] = {1319, 80};  // E6
-    currentMelody[3] = {1568, 150}; // G6
+    currentMelody[0] = {880, 80};
+    currentMelody[1] = {1047, 80}; 
+    currentMelody[2] = {1319, 80};  
+    currentMelody[3] = {1568, 150}; 
     playMelody(4);
 }
 
@@ -381,6 +462,24 @@ void triggerMovementNote(int frequency) {
     playMelody(1);
 }
 
+void triggerMusicModeUnlockSound() {
+    currentMelody[0] = {523, 60};   
+    currentMelody[1] = {659, 60};   
+    currentMelody[2] = {784, 60};   
+    currentMelody[3] = {1047, 60};  
+    currentMelody[4] = {1319, 60};  
+    currentMelody[5] = {1568, 200}; 
+    playMelody(6);
+}
+
+void triggerMusicModeExitSound() {
+    currentMelody[0] = {1047, 80};  
+    currentMelody[1] = {784, 80};   
+    currentMelody[2] = {659, 80};   
+    currentMelody[3] = {523, 200};  
+    playMelody(4);
+}
+
 void triggerChargingPluggedSound() {
     currentMelody[0] = {523, 100};  
     currentMelody[1] = {784, 100};  
@@ -408,7 +507,6 @@ void triggerFullChargeSound() {
 void updateSoundEngine() {
     unsigned long now = millis();
 
-    // 1. Process active short instrument notes and arpeggios first
     if (isPlayingSound) {
         if (now - noteStartTime >= currentMelody[currentNoteIndex].duration) {
             currentNoteIndex++;
@@ -427,21 +525,19 @@ void updateSoundEngine() {
         }
     }
 
-    // 2. CRITICAL BUGFIX: Process the continuous reverse beeper ONLY if the initial movement note has completed!
-    if (currentCmd == "BACKWARD") {
+    if (currentCmd == "BACKWARD" && !isMusicMode) {
         if (!isPlayingSound) { 
-            if (now - lastBackupBeep >= 250) { // Creates a distinct 250ms ON / 250ms OFF pulse profile
+            if (now - lastBackupBeep >= 250) { 
                 lastBackupBeep = now;
                 backupBeepState = !backupBeepState;
                 if (backupBeepState) {
-                    tone(BUZZER_PIN, 349); // Retro warning chime scale note (F4)
+                    tone(BUZZER_PIN, 349); 
                 } else {
                     noTone(BUZZER_PIN);
                 }
             }
         }
     } else {
-        // Stop beeping immediately when you release the down direction key
         if (backupBeepState) {
             noTone(BUZZER_PIN);
             backupBeepState = false;
@@ -466,7 +562,6 @@ void updateFaceAnimation() {
     display.clearDisplay();
     unsigned long now = millis();
 
-    // Trigger synchronized blink click sounds during RESTING, FORWARD, LEFT, or RIGHT states
     if (currentFace == FACE_FORWARD || currentFace == FACE_LEFT || currentFace == FACE_RIGHT || (currentFace == FACE_IDLE && currentIdleAct == ACT_RESTING)) {
         if (!isBlinking && (now - lastBlinkTime >= blinkInterval)) {
             isBlinking = true;
@@ -568,7 +663,7 @@ void updateFaceAnimation() {
             display.drawRoundRect(52, 40, 24, 14, 6, SSD1306_WHITE);
             break;
         }
-        case FACE_RIGHT: {
+        case FACE_LEFT: {
             display.fillCircle(10, 42, 4, SSD1306_WHITE);
             display.fillCircle(118, 42, 4, SSD1306_WHITE);
 
@@ -589,7 +684,7 @@ void updateFaceAnimation() {
             }
             break;
         }
-        case FACE_LEFT: {
+        case FACE_RIGHT: {
             display.fillCircle(10, 42, 4, SSD1306_WHITE);
             display.fillCircle(118, 42, 4, SSD1306_WHITE);
 
@@ -666,6 +761,29 @@ void updateFaceAnimation() {
                 display.drawRoundRect(48, 51, 32, 11, 2, SSD1306_WHITE);
                 display.fillRect(80, 54, 2, 5, SSD1306_WHITE);
                 display.fillRect(52, 53, 6, 7, SSD1306_WHITE); 
+            }
+            break;
+        }
+        case FACE_MUSIC_MODE: {
+            display.fillCircle(10, 42, 4, SSD1306_WHITE);
+            display.fillCircle(118, 42, 4, SSD1306_WHITE);
+
+            int singBounce = sin(now * 0.012) * 2;
+            display.drawCircle(32, 28 + singBounce, 12, SSD1306_WHITE);
+            display.fillRect(16, 28 + singBounce, 32, 14, SSD1306_BLACK);
+            display.drawCircle(96, 28 + singBounce, 12, SSD1306_WHITE);
+            display.fillRect(80, 28 + singBounce, 32, 14, SSD1306_BLACK);
+
+            int dynamicMouth = isPlayingSound ? 12 : (sin(now * 0.015) * 3 + 8);
+            display.fillCircle(64, 44, dynamicMouth, SSD1306_WHITE);
+
+            for (int i = 0; i < 2; i++) {
+                int noteShift = sin((now + (i * 2000)) * 0.008) * 5;
+                int noteX = 14 + (i * 96) + noteShift / 2;
+                int noteY = 18 + noteShift;
+                display.fillCircle(noteX, noteY, 2, SSD1306_WHITE);
+                display.drawLine(noteX + 2, noteY, noteX + 2, noteY - 6, SSD1306_WHITE);
+                display.drawLine(noteX + 2, noteY - 6, noteX + 5, noteY - 5, SSD1306_WHITE);
             }
             break;
         }
@@ -867,12 +985,6 @@ void updateFaceAnimation() {
                         display.setCursor(zX - 8, zY + 6);
                         display.print("z");
                     }
-
-                    static unsigned long lastSnoreTime = 0;
-                    if (now - lastSnoreTime >= 4000) { 
-                        lastSnoreTime = now;
-                        triggerSnoozeSound();
-                    }
                     break;
                 }
             }
@@ -882,11 +994,10 @@ void updateFaceAnimation() {
     display.display();
 }
 
-// Drive outputs to MX1508 H-Bridge with software Left Motor inversion
 void processMovement(String command) {
     unsigned long now = millis();
 
-    // Wake Up Trigger: If napping/yawning and receives a command -> instantly wake up!
+    // Wake Up Trigger: If napping/yawning and receives a control signal -> wake up!
     if (command != "STOP" && (currentIdleAct == ACT_NAPPING || currentIdleAct == ACT_YAWNING)) {
         currentIdleAct = ACT_RESTING;
         idleActElapsedTime = 0;
@@ -894,15 +1005,74 @@ void processMovement(String command) {
         triggerConnectedSound(); 
     }
 
-    // --- EASTER EGG INITIATION SCALE ---
+    // --- SECRET UNIVERSAL WIGGLE COMBO SWAPPER ---
+    if (command != "STOP" && currentCmd == "STOP") {
+        // Monitor combo sequence timeout safety bounds
+        if (now - lastComboTapTime > 2000) {
+            comboStateStep = 0; 
+        }
+        lastComboTapTime = now;
+
+        // Unified 4-step Left-Right-Left-Right toggle path
+        if (comboStateStep == 0 && command == "LEFT") comboStateStep = 1;
+        else if (comboStateStep == 1 && command == "RIGHT") comboStateStep = 2;
+        else if (comboStateStep == 2 && command == "LEFT") comboStateStep = 3;
+        else if (comboStateStep == 3 && command == "RIGHT") {
+            comboStateStep = 0; // Combo completed successfully!
+            
+            if (!isMusicMode) {
+                // Enter Music Mode
+                isMusicMode = true;
+                currentFace = FACE_MUSIC_MODE;
+                triggerMusicModeUnlockSound(); 
+                webSocket.broadcastTXT("UI_MUSIC"); // Morph layout to 3x3 launchpad grid
+            } else {
+                // Exit Music Mode
+                isMusicMode = false;
+                currentFace = FACE_IDLE;
+                currentIdleAct = ACT_RESTING;
+                idleActElapsedTime = 0;
+                idleActDuration = random(2000, 10001);
+                sleepElapsedTime = 0; 
+                triggerMusicModeExitSound(); 
+                webSocket.broadcastTXT("UI_DRIVE"); // Morph layout back to drive arrows cross
+            }
+            currentCmd = "STOP";
+            return;
+        } else {
+            comboStateStep = (command == "LEFT") ? 1 : 0;
+        }
+    }
+
+    // --- 9-NOTE INSTRUMENT SIGNAL SYNTHESIZER ---
     if (command != currentCmd && command != "STOP") {
-        if (command == "FORWARD")       triggerMovementNote(523); // Play C5
-        else if (command == "BACKWARD")  triggerMovementNote(587); // Play D5
-        else if (command == "LEFT")      triggerMovementNote(659); // Play E5
-        else if (command == "RIGHT")     triggerMovementNote(698); // FIX: Swapped G5 out for a perfectly tuned F5!
+        if (isMusicMode) {
+            if (command == "NW")             triggerMovementNote(523); // Do (C5)
+            else if (command == "FORWARD")   triggerMovementNote(587); // Re (D5)
+            else if (command == "NE")        triggerMovementNote(659); // Mi (E5)
+            else if (command == "LEFT")      triggerMovementNote(698); // Fa (F5)
+            else if (command == "CENTER")    triggerMovementNote(784); // Sol (G5)
+            else if (command == "RIGHT")     triggerMovementNote(880); // La (A5)
+            else if (command == "SW")        triggerMovementNote(988); // Si (B5)
+            else if (command == "BACKWARD")  triggerMovementNote(1047);// Do+ (C6)
+            else if (command == "SE")        triggerMovementNote(1175);// Re+ (D6)
+        } else {
+            if (command == "FORWARD")       triggerMovementNote(523); 
+            else if (command == "BACKWARD")  triggerMovementNote(587); 
+            else if (command == "LEFT")      triggerMovementNote(659); 
+            else if (command == "RIGHT")     triggerMovementNote(698); 
+        }
     }
     
     currentCmd = command;
+
+    // Force complete physical immobilization inside Music Mode
+    if (isMusicMode) {
+        digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW);
+        digitalWrite(MOTOR_IN3, LOW); digitalWrite(MOTOR_IN4, LOW);
+        return; 
+    }
+
     if (command == "FORWARD") {
         digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW);
         digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, HIGH);
@@ -918,7 +1088,6 @@ void processMovement(String command) {
     } else { // STOP
         digitalWrite(MOTOR_IN1, LOW);  digitalWrite(MOTOR_IN2, LOW);
         digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, LOW);
-        currentCmd = "STOP";
     }
 }
 
@@ -927,6 +1096,12 @@ void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t * payload, size_t leng
     if (type == WStype_TEXT) {
         String cmd = String((char*)payload);
         processMovement(cmd);
+    } else if (type == WStype_CONNECTED) {
+        if (isMusicMode) {
+            webSocket.sendTXT(num, "UI_MUSIC");
+        } else {
+            webSocket.sendTXT(num, "UI_DRIVE");
+        }
     }
 }
 
@@ -1001,7 +1176,6 @@ void setup() {
     // Launch Captive DNS Portal routing
     dnsServer.start(DNS_PORT, "*", local_IP);
 
-    // Serve custom Copper Dashboard
     server.on("/", HTTP_GET, []() {
         server.send_P(200, "text/html", INDEX_HTML);
     });
@@ -1029,7 +1203,7 @@ void loop() {
     lastLoopTime = now;
 
     // --- ACCUMULATE ELAPSED TIME STRICTLY IF WE ARE STOPPED ---
-    if (currentCmd == "STOP") {
+    if (currentCmd == "STOP" && !isMusicMode) {
         idleActElapsedTime += dt;
         sleepElapsedTime += dt;
     } else {
@@ -1039,23 +1213,24 @@ void loop() {
     dnsServer.processNextRequest(); 
     server.handleClient();
     webSocket.loop();
-    updateSoundEngine(); // Processes short melodic key notes and handles pulsing warn states
+    updateSoundEngine(); 
     checkBatteryStatus(); 
 
     static int lastActiveClients = 0;
     int activeClients = webSocket.connectedClients();
 
     if (activeClients > lastActiveClients) {
-        currentFace = FACE_CONNECTED;
+        currentFace = isMusicMode ? FACE_MUSIC_MODE : FACE_CONNECTED;
         connectedAnimStart = now;
         triggerConnectedSound(); 
     } else if (activeClients == 0) {
         if (currentFace != FACE_BOOTING && currentFace != FACE_CONNECTING && currentFace != FACE_DISCONNECTED) {
             currentFace = FACE_DISCONNECTED;
+            isMusicMode = false; 
             triggerDisconnectedSound(); 
         }
     } else {
-        if (currentFace == FACE_CONNECTED) {
+        if (currentFace == FACE_CONNECTED && !isMusicMode) {
             if (now - connectedAnimStart >= connectedAnimDuration) {
                 currentFace = FACE_IDLE;
                 currentIdleAct = ACT_RESTING;
@@ -1063,7 +1238,9 @@ void loop() {
                 idleActDuration = random(2000, 10001); 
             }
         } else {
-            if (currentCmd != "STOP") {
+            if (isMusicMode) {
+                currentFace = FACE_MUSIC_MODE;
+            } else if (currentCmd != "STOP") {
                 if (currentCmd == "FORWARD") currentFace = FACE_FORWARD;
                 else if (currentCmd == "BACKWARD") currentFace = FACE_BACKWARD;
                 else if (currentCmd == "LEFT") currentFace = FACE_LEFT;
@@ -1096,7 +1273,7 @@ void loop() {
     }
 
     // --- SLEEP MODE OVERRIDE (2-Minute Inactivity Monitor) ---
-    if (currentFace == FACE_IDLE && currentCmd == "STOP" && !isCharging && !isBatteryLow) {
+    if (currentFace == FACE_IDLE && currentCmd == "STOP" && !isCharging && !isBatteryLow && !isMusicMode) {
         if (sleepElapsedTime >= sleepThreshold) {
             if (currentIdleAct != ACT_NAPPING && currentIdleAct != ACT_YAWNING) {
                 currentIdleAct = ACT_YAWNING;
@@ -1107,10 +1284,10 @@ void loop() {
         }
     }
 
-    // --- DYNAMIC SEQUENTIAL IDLE SCHEDULER (PAUSABLE) ---
-    if (currentFace == FACE_IDLE) {
+    // --- DYNAMIC SEQUENTIAL IDLE SCHEDULER ---
+    if (currentFace == FACE_IDLE && !isMusicMode) {
         if (sleepElapsedTime >= sleepThreshold && currentIdleAct == ACT_NAPPING) {
-            // LOCKED SLEEP STATE: Infinitely loops here until woken up by web/remote commands
+            // LOCKED SLEEP STATE
         } 
         else if (idleActElapsedTime >= idleActDuration) {
             idleActElapsedTime = 0; 
@@ -1132,10 +1309,8 @@ void loop() {
                 }
             } 
             else {
-                // Save what just ran to handle specific sleep logic hand-offs
                 IdleActivity finishedAct = currentIdleAct;
 
-                // Advance track timeline queue pointer
                 switch (finishedAct) {
                     case ACT_SINGING:  nextExpressiveMood = ACT_GIGGLING; break;
                     case ACT_GIGGLING: nextExpressiveMood = ACT_LOOKING; break;
@@ -1154,7 +1329,7 @@ void loop() {
                     idleActDuration = 12000; 
                 } else {
                     currentIdleAct = ACT_RESTING;
-                    idleActDuration = random(2000, 10001); // Random 2-10s baseline quiet delay budget
+                    idleActDuration = random(2000, 10001); 
                 }
             }
         }
