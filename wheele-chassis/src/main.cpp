@@ -7,20 +7,20 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-// Pin Mappings
-#define MOTOR_IN4 0  
-#define MOTOR_IN3 1  
-#define MOTOR_IN2 2  
-#define MOTOR_IN1 3  
-#define OLED_SDA  8  
-#define OLED_SCL  9  
-#define BUZZER_PIN 10 
-#define BATTERY_PIN 4  
-#define CHARGING_PIN 5  
+// Pin mappings
+constexpr uint8_t MOTOR_IN4 = 0;
+constexpr uint8_t MOTOR_IN3 = 1;
+constexpr uint8_t MOTOR_IN2 = 2;
+constexpr uint8_t MOTOR_IN1 = 3;
+constexpr uint8_t OLED_SDA = 8;
+constexpr uint8_t OLED_SCL = 9;
+constexpr uint8_t BUZZER_PIN = 10;
+constexpr uint8_t BATTERY_PIN = 4;
+constexpr uint8_t CHARGING_PIN = 5;
 
 // Display settings
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+constexpr uint8_t SCREEN_WIDTH = 128;
+constexpr uint8_t SCREEN_HEIGHT = 64;
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 // Custom IP configurations on the 192.168.67.X subnetwork
@@ -28,7 +28,7 @@ IPAddress local_IP(192, 168, 67, 1);
 IPAddress gateway(192, 168, 67, 1);
 IPAddress subnet(255, 255, 255, 0);
 
-const byte DNS_PORT = 53;
+constexpr uint16_t DNS_PORT = 53;
 DNSServer dnsServer;
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
@@ -270,8 +270,67 @@ enum FaceState {
     FACE_MUSIC_MODE   
 };
 
+enum RobotCommand {
+    CMD_STOP,
+    CMD_FORWARD,
+    CMD_BACKWARD,
+    CMD_LEFT,
+    CMD_RIGHT,
+    CMD_NW,
+    CMD_NE,
+    CMD_SW,
+    CMD_SE,
+    CMD_CENTER
+};
+
 FaceState currentFace = FACE_BOOTING;
-String currentCmd = "STOP";
+RobotCommand currentCmd = CMD_STOP;
+
+static RobotCommand parseCommand(const String &command) {
+    if (command == "FORWARD") return CMD_FORWARD;
+    if (command == "BACKWARD") return CMD_BACKWARD;
+    if (command == "LEFT") return CMD_LEFT;
+    if (command == "RIGHT") return CMD_RIGHT;
+    if (command == "NW") return CMD_NW;
+    if (command == "NE") return CMD_NE;
+    if (command == "SW") return CMD_SW;
+    if (command == "SE") return CMD_SE;
+    if (command == "CENTER") return CMD_CENTER;
+    return CMD_STOP;
+}
+
+static void stopMotors() {
+    digitalWrite(MOTOR_IN1, LOW);
+    digitalWrite(MOTOR_IN2, LOW);
+    digitalWrite(MOTOR_IN3, LOW);
+    digitalWrite(MOTOR_IN4, LOW);
+}
+
+static void setMotorsForCommand(RobotCommand command) {
+    if (command == CMD_FORWARD) {
+        digitalWrite(MOTOR_IN1, HIGH);
+        digitalWrite(MOTOR_IN2, LOW);
+        digitalWrite(MOTOR_IN3, LOW);
+        digitalWrite(MOTOR_IN4, HIGH);
+    } else if (command == CMD_BACKWARD) {
+        digitalWrite(MOTOR_IN1, LOW);
+        digitalWrite(MOTOR_IN2, HIGH);
+        digitalWrite(MOTOR_IN3, HIGH);
+        digitalWrite(MOTOR_IN4, LOW);
+    } else if (command == CMD_LEFT) {
+        digitalWrite(MOTOR_IN1, HIGH);
+        digitalWrite(MOTOR_IN2, LOW);
+        digitalWrite(MOTOR_IN3, HIGH);
+        digitalWrite(MOTOR_IN4, LOW);
+    } else if (command == CMD_RIGHT) {
+        digitalWrite(MOTOR_IN1, LOW);
+        digitalWrite(MOTOR_IN2, HIGH);
+        digitalWrite(MOTOR_IN3, LOW);
+        digitalWrite(MOTOR_IN4, HIGH);
+    } else {
+        stopMotors();
+    }
+}
 
 // --- DYNAMIC COMPANION MOOD ROTATION STATES ---
 enum IdleActivity {
@@ -525,7 +584,7 @@ void updateSoundEngine() {
         }
     }
 
-    if (currentCmd == "BACKWARD" && !isMusicMode) {
+    if (currentCmd == CMD_BACKWARD && !isMusicMode) {
         if (!isPlayingSound) { 
             if (now - lastBackupBeep >= 250) { 
                 lastBackupBeep = now;
@@ -995,100 +1054,77 @@ void updateFaceAnimation() {
 }
 
 void processMovement(String command) {
+    RobotCommand cmd = parseCommand(command);
     unsigned long now = millis();
 
-    // Wake Up Trigger: If napping/yawning and receives a control signal -> wake up!
-    if (command != "STOP" && (currentIdleAct == ACT_NAPPING || currentIdleAct == ACT_YAWNING)) {
+    // Wake-up trigger: napping/yawning resumes when a control command arrives.
+    if (cmd != CMD_STOP && (currentIdleAct == ACT_NAPPING || currentIdleAct == ACT_YAWNING)) {
         currentIdleAct = ACT_RESTING;
         idleActElapsedTime = 0;
-        idleActDuration = random(2000, 10001); 
-        triggerConnectedSound(); 
+        idleActDuration = random(2000, 10001);
+        triggerConnectedSound();
     }
 
-    // --- SECRET UNIVERSAL WIGGLE COMBO SWAPPER ---
-    if (command != "STOP" && currentCmd == "STOP") {
-        // Monitor combo sequence timeout safety bounds
+    if (cmd != CMD_STOP && currentCmd == CMD_STOP) {
         if (now - lastComboTapTime > 2000) {
-            comboStateStep = 0; 
+            comboStateStep = 0;
         }
         lastComboTapTime = now;
 
-        // Unified 4-step Left-Right-Left-Right toggle path
-        if (comboStateStep == 0 && command == "LEFT") comboStateStep = 1;
-        else if (comboStateStep == 1 && command == "RIGHT") comboStateStep = 2;
-        else if (comboStateStep == 2 && command == "LEFT") comboStateStep = 3;
-        else if (comboStateStep == 3 && command == "RIGHT") {
-            comboStateStep = 0; // Combo completed successfully!
-            
+        if (comboStateStep == 0 && cmd == CMD_LEFT) comboStateStep = 1;
+        else if (comboStateStep == 1 && cmd == CMD_RIGHT) comboStateStep = 2;
+        else if (comboStateStep == 2 && cmd == CMD_LEFT) comboStateStep = 3;
+        else if (comboStateStep == 3 && cmd == CMD_RIGHT) {
+            comboStateStep = 0;
             if (!isMusicMode) {
-                // Enter Music Mode
                 isMusicMode = true;
                 currentFace = FACE_MUSIC_MODE;
-                triggerMusicModeUnlockSound(); 
-                webSocket.broadcastTXT("UI_MUSIC"); // Morph layout to 3x3 launchpad grid
+                triggerMusicModeUnlockSound();
+                webSocket.broadcastTXT("UI_MUSIC");
             } else {
-                // Exit Music Mode
                 isMusicMode = false;
                 currentFace = FACE_IDLE;
                 currentIdleAct = ACT_RESTING;
                 idleActElapsedTime = 0;
                 idleActDuration = random(2000, 10001);
-                sleepElapsedTime = 0; 
-                triggerMusicModeExitSound(); 
-                webSocket.broadcastTXT("UI_DRIVE"); // Morph layout back to drive arrows cross
+                sleepElapsedTime = 0;
+                triggerMusicModeExitSound();
+                webSocket.broadcastTXT("UI_DRIVE");
             }
-            currentCmd = "STOP";
+            currentCmd = CMD_STOP;
             return;
         } else {
-            comboStateStep = (command == "LEFT") ? 1 : 0;
+            comboStateStep = (cmd == CMD_LEFT) ? 1 : 0;
         }
     }
 
-    // --- 9-NOTE INSTRUMENT SIGNAL SYNTHESIZER ---
-    if (command != currentCmd && command != "STOP") {
+    if (cmd != currentCmd && cmd != CMD_STOP) {
         if (isMusicMode) {
-            if (command == "NW")             triggerMovementNote(523); // Do (C5)
-            else if (command == "FORWARD")   triggerMovementNote(587); // Re (D5)
-            else if (command == "NE")        triggerMovementNote(659); // Mi (E5)
-            else if (command == "LEFT")      triggerMovementNote(698); // Fa (F5)
-            else if (command == "CENTER")    triggerMovementNote(784); // Sol (G5)
-            else if (command == "RIGHT")     triggerMovementNote(880); // La (A5)
-            else if (command == "SW")        triggerMovementNote(988); // Si (B5)
-            else if (command == "BACKWARD")  triggerMovementNote(1047);// Do+ (C6)
-            else if (command == "SE")        triggerMovementNote(1175);// Re+ (D6)
+            if (cmd == CMD_NW)             triggerMovementNote(523);
+            else if (cmd == CMD_FORWARD)   triggerMovementNote(587);
+            else if (cmd == CMD_NE)        triggerMovementNote(659);
+            else if (cmd == CMD_LEFT)      triggerMovementNote(698);
+            else if (cmd == CMD_CENTER)    triggerMovementNote(784);
+            else if (cmd == CMD_RIGHT)     triggerMovementNote(880);
+            else if (cmd == CMD_SW)        triggerMovementNote(988);
+            else if (cmd == CMD_BACKWARD)  triggerMovementNote(1047);
+            else if (cmd == CMD_SE)        triggerMovementNote(1175);
         } else {
-            if (command == "FORWARD")       triggerMovementNote(523); 
-            else if (command == "BACKWARD")  triggerMovementNote(587); 
-            else if (command == "LEFT")      triggerMovementNote(659); 
-            else if (command == "RIGHT")     triggerMovementNote(698); 
+            if (cmd == CMD_FORWARD)       triggerMovementNote(523);
+            else if (cmd == CMD_BACKWARD)  triggerMovementNote(587);
+            else if (cmd == CMD_LEFT)      triggerMovementNote(659);
+            else if (cmd == CMD_RIGHT)     triggerMovementNote(698);
         }
     }
-    
-    currentCmd = command;
 
-    // Force complete physical immobilization inside Music Mode
+    currentCmd = cmd;
+
     if (isMusicMode) {
-        digitalWrite(MOTOR_IN1, LOW); digitalWrite(MOTOR_IN2, LOW);
-        digitalWrite(MOTOR_IN3, LOW); digitalWrite(MOTOR_IN4, LOW);
-        return; 
+        stopMotors();
+        return;
     }
 
-    if (command == "FORWARD") {
-        digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW);
-        digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, HIGH);
-    } else if (command == "BACKWARD") {
-        digitalWrite(MOTOR_IN1, LOW);  digitalWrite(MOTOR_IN2, HIGH);
-        digitalWrite(MOTOR_IN3, HIGH); digitalWrite(MOTOR_IN4, LOW);
-    } else if (command == "LEFT") {
-        digitalWrite(MOTOR_IN1, HIGH); digitalWrite(MOTOR_IN2, LOW);
-        digitalWrite(MOTOR_IN3, HIGH); digitalWrite(MOTOR_IN4, LOW);
-    } else if (command == "RIGHT") {
-        digitalWrite(MOTOR_IN1, LOW);  digitalWrite(MOTOR_IN2, HIGH);
-        digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, HIGH);
-    } else { // STOP
-        digitalWrite(MOTOR_IN1, LOW);  digitalWrite(MOTOR_IN2, LOW);
-        digitalWrite(MOTOR_IN3, LOW);  digitalWrite(MOTOR_IN4, LOW);
-    }
+    setMotorsForCommand(cmd);
 }
 
 // WebSocket client packet handler
@@ -1203,7 +1239,7 @@ void loop() {
     lastLoopTime = now;
 
     // --- ACCUMULATE ELAPSED TIME STRICTLY IF WE ARE STOPPED ---
-    if (currentCmd == "STOP" && !isMusicMode) {
+    if (currentCmd == CMD_STOP && !isMusicMode) {
         idleActElapsedTime += dt;
         sleepElapsedTime += dt;
     } else {
@@ -1240,11 +1276,11 @@ void loop() {
         } else {
             if (isMusicMode) {
                 currentFace = FACE_MUSIC_MODE;
-            } else if (currentCmd != "STOP") {
-                if (currentCmd == "FORWARD") currentFace = FACE_FORWARD;
-                else if (currentCmd == "BACKWARD") currentFace = FACE_BACKWARD;
-                else if (currentCmd == "LEFT") currentFace = FACE_LEFT;
-                else if (currentCmd == "RIGHT") currentFace = FACE_RIGHT;
+            } else if (currentCmd != CMD_STOP) {
+                if (currentCmd == CMD_FORWARD) currentFace = FACE_FORWARD;
+                else if (currentCmd == CMD_BACKWARD) currentFace = FACE_BACKWARD;
+                else if (currentCmd == CMD_LEFT) currentFace = FACE_LEFT;
+                else if (currentCmd == CMD_RIGHT) currentFace = FACE_RIGHT;
             } else {
                 if (isCharging) {
                     if (isFullCharge) {
@@ -1273,7 +1309,7 @@ void loop() {
     }
 
     // --- SLEEP MODE OVERRIDE (2-Minute Inactivity Monitor) ---
-    if (currentFace == FACE_IDLE && currentCmd == "STOP" && !isCharging && !isBatteryLow && !isMusicMode) {
+    if (currentFace == FACE_IDLE && currentCmd == CMD_STOP && !isCharging && !isBatteryLow && !isMusicMode) {
         if (sleepElapsedTime >= sleepThreshold) {
             if (currentIdleAct != ACT_NAPPING && currentIdleAct != ACT_YAWNING) {
                 currentIdleAct = ACT_YAWNING;
