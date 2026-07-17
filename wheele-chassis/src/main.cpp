@@ -1424,8 +1424,8 @@ void loop() {
             } else if (currentCmd != "STOP") {
                 if (currentCmd == "FORWARD") currentFace = FACE_FORWARD;
                 else if (currentCmd == "BACKWARD") currentFace = FACE_BACKWARD;
-                else if (currentCmd == "LEFT") currentFace = FACE_LEFT;
-                else if (currentCmd == "RIGHT") currentFace = FACE_RIGHT;
+                else if (currentCmd == "LEFT") currentFace = FACE_RIGHT;
+                else if (currentCmd == "RIGHT") currentFace = FACE_LEFT;
             } else {
                 if (isCharging) {
                     if (isFullCharge) {
