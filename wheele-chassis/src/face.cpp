@@ -209,7 +209,6 @@ void updateFaceAnimation() {
     int yOffset = 0;
     if (currentFace == FACE_IDLE || currentFace == FACE_FORWARD || 
         currentFace == FACE_LEFT || currentFace == FACE_RIGHT ||
-        currentFace == FACE_CHARGING || currentFace == FACE_FULL_CHARGE ||
         currentFace == FACE_MUSIC_MODE || currentFace == FACE_CONNECTED) {
         yOffset = (int)(sin(now * 0.002f) * 1.5f);
     }
@@ -413,50 +412,6 @@ void updateFaceAnimation() {
             break;
         }
 
-        case FACE_CHARGING: {
-            display.fillCircle(10, 42 + yOffset, 4, SSD1306_WHITE);
-            display.fillCircle(118, 42 + yOffset, 4, SSD1306_WHITE);
-            display.drawPixel(64, 43 + yOffset, SSD1306_WHITE);
-            display.drawLine(58, 40 + yOffset, 60, 42 + yOffset, SSD1306_WHITE);
-            display.drawLine(60, 42 + yOffset, 64, 43 + yOffset, SSD1306_WHITE);
-            display.drawLine(64, 43 + yOffset, 68, 42 + yOffset, SSD1306_WHITE);
-            display.drawLine(68, 42 + yOffset, 70, 40 + yOffset, SSD1306_WHITE);
-            
-            int breath = (int)(sin(now * 0.003f) * 2) + 4;
-            display.fillRoundRect(16, 18 + yOffset, 32, breath, 2, SSD1306_WHITE);
-            display.fillRoundRect(80, 18 + yOffset, 32, breath, 2, SSD1306_WHITE);
-            
-            // Battery icon
-            display.drawRoundRect(48, 51, 32, 11, 2, SSD1306_WHITE);
-            display.fillRect(80, 54, 2, 5, SSD1306_WHITE);
-            int fillWidth = ((now / 200) % 6) * 5;
-            display.fillRect(50, 53, fillWidth, 7, SSD1306_WHITE);
-            
-            // Spawn charging energy spark (+) particles
-            if (random(0, 10) == 0) {
-                spawnParticle(48 + random(0, 32), 48, ((float)random(-5, 6)) / 20.0f, -0.6f, 6, 2, 35);
-            }
-            break;
-        }
-
-        case FACE_FULL_CHARGE: {
-            display.fillCircle(10, 42 + yOffset, 4, SSD1306_WHITE);
-            display.fillCircle(118, 42 + yOffset, 4, SSD1306_WHITE);
-            display.fillRoundRect(50, 36 + yOffset, 28, 15, 5, SSD1306_WHITE);
-            
-            // Normal open eyes (affected by yOffset)
-            display.fillRoundRect(16, 6 + yOffset, 32, 32, 8, SSD1306_WHITE);
-            display.fillRoundRect(80, 6 + yOffset, 32, 32, 8, SSD1306_WHITE);
-            display.fillCircle(38, 14 + yOffset, 4, SSD1306_BLACK);
-            display.fillCircle(24, 26 + yOffset, 2, SSD1306_BLACK);
-            display.fillCircle(102, 14 + yOffset, 4, SSD1306_BLACK);
-            display.fillCircle(88,  26 + yOffset, 2, SSD1306_BLACK);
-            
-            display.drawRoundRect(48, 51, 32, 11, 2, SSD1306_WHITE);
-            display.fillRect(80, 54, 2, 5, SSD1306_WHITE);
-            display.fillRect(50, 53, 28, 7, SSD1306_WHITE);
-            break;
-        }
 
         case FACE_LOW_BATTERY: {
             int jitter = ((now / 30) % 2 == 0) ? 1 : -1;

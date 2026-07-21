@@ -160,29 +160,11 @@ void triggerMusicModeExitSound() {
     playMelody(4);
 }
 
-void triggerChargingPluggedSound() {
-    currentMelody[0] = {523,  80};   // C5
-    currentMelody[1] = {659,  80};   // E5
-    currentMelody[2] = {784,  80};   // G5
-    currentMelody[3] = {1047, 150};  // C6
-    playMelody(4);
-}
-
 void triggerLowBatterySound() {
     currentMelody[0] = {440, 150};   // A4 alert beep
     currentMelody[1] = {0,   100};
     currentMelody[2] = {440, 150};
     playMelody(3);
-}
-
-void triggerFullChargeSound() {
-    currentMelody[0] = {523,  60};   // Triumphant fanfare
-    currentMelody[1] = {659,  60};
-    currentMelody[2] = {784,  60};
-    currentMelody[3] = {1047, 60};
-    currentMelody[4] = {1319, 60};
-    currentMelody[5] = {1568, 200};
-    playMelody(6);
 }
 
 // ── Background Sound Engine ───────────────────────────────────────────────────
@@ -248,22 +230,28 @@ void updateSoundEngine() {
 }
 
 void customTone(uint8_t pin, unsigned int frequency) {
+    static unsigned int lastFrequency = 0;
     uint8_t channel = 0;
     if (frequency == 0 || buzzerVolume == 0) {
         ledcWrite(channel, 0);
         noTone(pin);
+        lastFrequency = 0;   // reset cache so next non-zero tone reconfigures cleanly
         return;
     }
-    ledcSetup(channel, frequency, 8);
-    ledcAttachPin(pin, channel);
-    // Cubic scaling for human hearing and to counteract the piezo buzzer's sharp response threshold
-    float volFrac = (float)buzzerVolume / 100.0f;
-    float volCubic = volFrac * volFrac * volFrac;
-    
-    uint32_t minDuty = 3;
-    uint32_t maxDuty = 127;
-    uint32_t duty = minDuty + (uint32_t)((maxDuty - minDuty) * volCubic);
-    
+    // Only reconfigure the LEDC hardware timer when the frequency actually changes.
+    // Skipping redundant ledcSetup calls saves ~15 µs per note in a melody sequence.
+    if (frequency != lastFrequency) {
+        ledcSetup(channel, frequency, 8);
+        lastFrequency = frequency;
+    }
+    ledcAttachPin(pin, channel);   // re-attach in case noTone() detached the pin
+    // Cubic scaling compensates for human hearing curves and the piezo's
+    // non-linear activation threshold.
+    float    volFrac  = (float)buzzerVolume / 100.0f;
+    float    volCubic = volFrac * volFrac * volFrac;
+    uint32_t minDuty  = 3;
+    uint32_t maxDuty  = 127;
+    uint32_t duty     = minDuty + (uint32_t)((maxDuty - minDuty) * volCubic);
     ledcWrite(channel, duty);
 }
 

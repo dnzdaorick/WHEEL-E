@@ -2,7 +2,7 @@
 #include "sound.h"
 
 // ── Battery Monitor State ─────────────────────────────────────────────────────
-float         batteryVoltage  = 4.2f;
+float         batteryVoltage  = -1.0f;  // -1 = not yet sampled; seeded on first read
 unsigned long lastBatteryCheck = 0;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11,46 +11,33 @@ void checkBatteryStatus() {
     if (now - lastBatteryCheck < 5000) return;
     lastBatteryCheck = now;
 
-    // ESP32-C3 ADC: attenuation is set to ADC_11db in setup() so the full
-    // 0–3.3 V range maps to 0–ADC_MAX_VAL (4095). The voltage divider on
-    // BATTERY_PIN halves the battery voltage before the ADC pin.
-    int rawAdc = analogRead(BATTERY_PIN);
-    float measured = ((float)rawAdc / ADC_MAX_VAL) * VREF * VDIVIDER_RATIO;
+    // Average 8 ADC samples to reduce noise from the boost converter.
+    // ESP32-C3 ADC: 11 dB attenuation set in setup() → full 0–3.3 V range.
+    // The voltage divider on BATTERY_PIN (two equal resistors) halves the
+    // battery voltage before the ADC pin, so multiply by VDIVIDER_RATIO (2).
+    long sum = 0;
+    for (int i = 0; i < 8; i++) {
+        sum += analogRead(BATTERY_PIN);
+        delayMicroseconds(200);
+    }
+    float measured = ((float)(sum / 8) / ADC_MAX_VAL) * VREF * VDIVIDER_RATIO;
 
-    // Exponential moving average — smooths ADC noise without delay
-    batteryVoltage = (batteryVoltage * 0.8f) + (measured * 0.2f);
-
-    bool chargePinActive = (digitalRead(CHARGING_PIN) == LOW);
-
-    // ── Charging detect edge ─────────────────────────────────────────────────
-    if (chargePinActive && !isCharging) {
-        isCharging = true;
-        triggerChargingPluggedSound();
-    } else if (!chargePinActive && isCharging) {
-        isCharging  = false;
-        isFullCharge = false;
+    // Exponential moving average — smooths residual ADC noise.
+    // On the very first sample seed directly from the real reading so the
+    // display never shows a bogus 100% on cold start.
+    if (batteryVoltage < 0.0f) {
+        batteryVoltage = measured;
+    } else {
+        batteryVoltage = (batteryVoltage * 0.8f) + (measured * 0.2f);
     }
 
-    // ── Charge level thresholds ──────────────────────────────────────────────
-    if (isCharging) {
-        if (batteryVoltage >= 4.12f) {
-            if (!isFullCharge) {
-                isFullCharge = true;
-                triggerFullChargeSound();
-            }
-        } else {
-            isFullCharge = false;
+    // ── Low-battery alert ────────────────────────────────────────────────────
+    if (batteryVoltage <= 3.45f) {
+        if (!isBatteryLow) {
+            isBatteryLow = true;
+            triggerLowBatterySound();
         }
-        isBatteryLow = false;
     } else {
-        isFullCharge = false;
-        if (batteryVoltage <= 3.45f) {
-            if (!isBatteryLow) {
-                isBatteryLow = true;
-                triggerLowBatterySound();
-            }
-        } else {
-            isBatteryLow = false;
-        }
+        isBatteryLow = false;
     }
 }

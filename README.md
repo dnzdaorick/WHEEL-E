@@ -29,7 +29,7 @@ W.H.E.E.L.-E.'s face is rendered on a **0.96" SSD1306 I2C OLED display** running
   - **Booting:** Plays system initialization checklist (System OK, WiFi AP, I2C Bus, Battery status) and fills a boot progress bar over 3 seconds.
   - **Connecting / Online / Offline:** Transitions between search states (animating Wi-Fi antenna), active connection (glowing heart-shape mouth, blushing cheeks, floating sparks), and offline state (sad cross-eyes with falling tears).
   - **Locomotion Tracking:** Eyes and facial layout shift dynamically in real-time matching the current movement direction (`FORWARD`, `BACKWARD`, `LEFT`, `RIGHT`).
-  - **Power & Charging:** Features distinct visual battery status bars, charging indicator sweeps, and a full charge complete face.
+  - **Power States:** Features a dedicated low-battery warning face (flashing warning triangle) and a napping sleep face that shows live battery percentage telemetry.
 - **Dynamic Physics Particle Engine:**
   - A real-time background particle simulator drives complex animation feedback on the OLED screen.
   - Particle types include: **Sweat droplets** (giggling), **wobbling music notes** with custom sine-wave horizontal drift (singing/music mode), **drifting sleeping 'Z's** (napping), **steam clouds** (sighing/anger), **exclamation triangles** (low battery warnings), and **falling teardrops** featuring realistic gravity acceleration and splash explosions on landing.
@@ -73,12 +73,17 @@ Unlock the secret musical mode to turn W.H.E.E.L.-E. into a playable chiptune sy
 - **Auto-Exit Timer:** If no keys are pressed for **10 seconds**, W.H.E.E.L.-E. plays an exit sound and automatically reverts to drive mode to save power.
 
 ### 5. Intelligent Power & Battery Management
-- **Auto-Sleep:** Transitions to low-power sleep (Yawning and Napping) after **2 minutes of inactivity**. Receiving any movement command immediately wakes the robot up.
-- **ADC Noise Filtering:** Employs an exponential moving average (EMA) filter ($V_{EMA} = 0.8 \times V_{EMA} + 0.2 \times V_{measured}$) to eliminate analog noise on battery voltage checks.
-- **Charge Protection & Telemetry:**
-  - *Active Charging:* Detects charger insertion, plays a plugging tone, switches to charging face, and animates a battery gauge.
-  - *Full Charge:* Detects $\ge 4.12\text{ V}$, plays a triumphant chime, and locks the OLED battery gauge at 100%.
-  - *Low Battery:* Flashes a warning triangle and sounds low battery warnings every 10 seconds when voltage drops below $\le 3.45\text{ V}$.
+- **Battery:** Palo 14250 3.7 V Li-ion cell (1200 mWh) with a built-in USB-C charging port. Charging is handled externally by the cell's internal charger — the firmware does **not** manage the charging cycle.
+- **Boost Converter:** Type-C USB 5V 2A Boost Converter Step-Up Power Module with integrated Li-ion protection board. Boosts the cell voltage to a stable **5 V / 2 A** output that powers the ESP32-C3 and all peripherals. Key specs:
+  - Input voltage: 5 – 5.5 V · Charging cut-off: 4.2 V ± 0.5%
+  - Boost output: 5 V – 5.15 V · Max output current: 2 A
+  - Conversion efficiency: 92.5% @ 3.6 V in / 5 V 2 A out · Quiescent current: < 30 µA
+- **Power Switch:** A tactile push-button wired between Battery (+) and the boost module's battery input interrupts the supply rail to cut all power when off.
+- **Battery Voltage Sensing:** A voltage divider (two 10 kΩ resistors + 10 µF decoupling capacitor) halves the cell voltage to the ADC-safe 0 – 3.3 V range for GPIO 4.
+- **ADC Noise Filtering:** Takes an **8-sample averaged** ADC reading every 5 seconds, then applies an exponential moving average filter ($V_{EMA} = 0.8 \times V_{EMA} + 0.2 \times V_{measured}$) to eliminate boost-converter switching noise.
+- **Sleep Battery Telemetry:** During the Napping face, the OLED displays a live battery percentage derived from the EMA voltage, linearly scaled between 3.45 V (0%) and 4.20 V (100%).
+- **Low Battery Alert:** Flashes a warning triangle face and sounds a low-battery alarm every 10 seconds when the cell voltage drops to $\le 3.45\text{ V}$.
+- **Auto-Sleep:** Transitions to low-power sleep (Yawning → Napping) after **2 minutes of inactivity**. Any movement command immediately wakes the robot.
 - **Tx Power Conservation:** The remote ESP32 reduces TX power to $8.5\text{ dBm}$ since W.H.E.E.L.-E. is operated nearby, saving heat and remote battery life.
 
 ## 1. Complete Project Bill of Materials (BOM)
@@ -90,7 +95,9 @@ Unlock the secret musical mode to turn W.H.E.E.L.-E. into a playable chiptune sy
 - Actuators: 2x GA12-N20 Right-Angle Worm Gear Motors (Mirrored Layout).
 - Display (Face): 0.96" SSD1306 I2C OLED Display.
 - **Sound:** Passive Buzzer driven by a 2N2222A (NPN) transistor and a 1kΩ base resistor to protect the ESP32-C3 GPIO pin.
-- Power Module: Type-C USB 5V 2A Boost Converter Charger Board + 3.7v 14250 Battery 300mAh.
+- **Power System:**
+  - Battery: Palo 14250 3.7 V Li-ion, 1200 mWh, with built-in USB-C charging port.
+  - Boost Converter: Type-C USB 5V 2A Boost Converter Step-Up Power Module with Li-ion protection board (input 5–5.5 V, output 5 V / 2 A, 92.5% efficiency).
 - Chassis Frame: 1mm Solid-Core Copper Wire.
 
 ### Logic Unit: Arduino Uno R3, which sends remote commands through the handheld station
@@ -126,6 +133,21 @@ Display I2C Bus
 
 - ESP32-C3 (GPIO 8) → I2C OLED Display (SDA)
 - ESP32-C3 (GPIO 9) → I2C OLED Display (SCL)
+
+Battery Voltage Sensing
+
+- Battery (+) rail → 10 kΩ resistor → junction node → GPIO 4 (ADC)
+- Junction node → 10 kΩ resistor → GND (chassis)
+- Junction node → 10 µF capacitor → GND (decoupling / anti-alias filter)
+
+Power Switch
+
+- Battery (+) → Tactile Switch (middle pin)
+- Tactile Switch (pin 3) → Boost Module (battery input +)
+- Battery (−) → Chassis GND
+- Boost Module (battery input −) → Chassis GND
+- Boost Module (5 V output +) → ESP32-C3 (5V / VBUS)
+- Boost Module (5 V output −) → ESP32-C3 (GND)
 
 Motor Outputs
 

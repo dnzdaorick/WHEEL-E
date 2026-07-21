@@ -51,6 +51,4 @@ void triggerSneezeSound();
 void triggerMovementNote(int frequency);
 void triggerMusicModeUnlockSound();
 void triggerMusicModeExitSound();
-void triggerChargingPluggedSound();
 void triggerLowBatterySound();
-void triggerFullChargeSound();

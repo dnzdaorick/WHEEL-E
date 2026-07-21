@@ -19,8 +19,6 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 // ── Shared Runtime State ──────────────────────────────────────────────────────
 char         currentCmd[16]            = "STOP";
 bool         isMusicMode               = false;
-bool         isCharging                = false;
-bool         isFullCharge              = false;
 bool         isBatteryLow             = false;
 FaceState    currentFace               = FACE_BOOTING;
 IdleActivity currentIdleAct            = ACT_RESTING;
@@ -35,8 +33,9 @@ const unsigned long sleepThreshold     = 120000;
 static unsigned long lastLoopTime = 0;
 
 // ── WebSocket Event Handler ───────────────────────────────────────────────────
-void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t /*length*/) {
+void onWebSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
     if (type == WStype_TEXT) {
+        if (length > 63) return;  // reject oversized messages; cmdBuf is 64 bytes
         processMovement((char*)payload);
     } else if (type == WStype_CONNECTED) {
         webSocket.sendTXT(num, isMusicMode ? "UI_MUSIC" : "UI_DRIVE");
@@ -62,9 +61,6 @@ void setup() {
     pinMode(BUZZER_PIN, OUTPUT);
     noTone(BUZZER_PIN);
 
-    // ── Charging Pin ─────────────────────────────────────────────────────────
-    pinMode(CHARGING_PIN, INPUT_PULLUP);
-
     // ── I2C + OLED ───────────────────────────────────────────────────────────
     Wire.begin(OLED_SDA, OLED_SCL);
     Wire.setClock(400000);   // Fast-mode: 400 kHz — 4× faster display frames
@@ -76,7 +72,7 @@ void setup() {
     // ── Wi-Fi Access Point ───────────────────────────────────────────────────
     WiFi.softAPConfig(local_IP, gateway, subnet);
     // Limit to 1 simultaneous station — reduces AP overhead & interference
-    WiFi.softAP("WHEEL-E_AP", "12345678", 1, 0, 1);
+    WiFi.softAP(AP_SSID, AP_PASSWORD, 1, 0, 1);
 
     // ── Captive DNS Portal ────────────────────────────────────────────────────
     dnsServer.start(DNS_PORT, "*", local_IP);
@@ -179,9 +175,7 @@ void loop() {
             else if (strcmp(currentCmd, "RIGHT")    == 0) currentFace = FACE_LEFT;
         } else {
             // Stopped — show battery / idle face
-            if (isCharging) {
-                currentFace = isFullCharge ? FACE_FULL_CHARGE : FACE_CHARGING;
-            } else if (isBatteryLow) {
+            if (isBatteryLow) {
                 currentFace = FACE_LOW_BATTERY;
                 static unsigned long lastLowBatBeep = 0;
                 if (now - lastLowBatBeep >= 10000) {
@@ -201,7 +195,7 @@ void loop() {
 
     // ── Sleep Transition (2 min inactivity) ──────────────────────────────────
     if (currentFace == FACE_IDLE && strcmp(currentCmd, "STOP") == 0 &&
-        !isCharging && !isBatteryLow && !isMusicMode) {
+        !isBatteryLow && !isMusicMode) {
         if (sleepElapsedTime >= sleepThreshold) {
             if (currentIdleAct != ACT_NAPPING && currentIdleAct != ACT_YAWNING) {
                 currentIdleAct  = ACT_YAWNING;

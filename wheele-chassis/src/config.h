@@ -18,14 +18,15 @@
 #define OLED_SCL      9
 #define BUZZER_PIN   10
 #define BATTERY_PIN   4    // ADC for battery voltage divider
-#define CHARGING_PIN  5    // LOW = actively charging
 
 // ── Display ───────────────────────────────────────────────────────────────────
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT  64
 
 // ── Network ───────────────────────────────────────────────────────────────────
-#define DNS_PORT 53
+#define DNS_PORT    53
+#define AP_SSID     "WHEEL-E"   // Wi-Fi Access Point name
+#define AP_PASSWORD "12345678"     // Min 8 chars required by WPA2
 
 // ── ADC / Battery ─────────────────────────────────────────────────────────────
 #define ADC_MAX_VAL     4095
@@ -43,8 +44,6 @@ enum FaceState {
     FACE_BACKWARD,
     FACE_LEFT,
     FACE_RIGHT,
-    FACE_CHARGING,
-    FACE_FULL_CHARGE,
     FACE_LOW_BATTERY,
     FACE_MUSIC_MODE
 };
@@ -69,8 +68,6 @@ extern WebSocketsServer webSocket;
 // ── Shared Runtime State (defined in main.cpp) ────────────────────────────────
 extern char         currentCmd[16];      // Active movement/music command
 extern bool         isMusicMode;
-extern bool         isCharging;
-extern bool         isFullCharge;
 extern bool         isBatteryLow;
 extern FaceState    currentFace;
 extern IdleActivity currentIdleAct;
